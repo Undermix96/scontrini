@@ -18,8 +18,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _initialized = false;
 
   static const _palette = [
-    '#4CAF50', '#03A9F4', '#795548', '#9C27B0', '#F44336', '#FF9800',
-    '#E91E63', '#3F51B5', '#009688', '#607D8B', '#CDDC39', '#FFC107',
+    '#4CAF50',
+    '#03A9F4',
+    '#795548',
+    '#9C27B0',
+    '#F44336',
+    '#FF9800',
+    '#E91E63',
+    '#3F51B5',
+    '#009688',
+    '#607D8B',
+    '#CDDC39',
+    '#FFC107',
   ];
 
   @override
@@ -184,7 +194,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         const SizedBox(height: 32),
-        Text('Scontrini · software libero, nessun tracker, nessun account.', style: Theme.of(context).textTheme.bodySmall),
+        Text('Scontrini · software libero, nessun tracker, nessun account.',
+            style: Theme.of(context).textTheme.bodySmall),
       ]),
     );
   }

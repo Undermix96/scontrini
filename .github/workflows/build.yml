@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  FLUTTER_VERSION: "FLUTTER_VERSION_PLACEHOLDER"
+  FLUTTER_VERSION: "3.47.9"
   # URL del progetto Supabase (non segreto): Settings → Variables → SUPABASE_URL
   SUPABASE_URL: ${{ vars.SUPABASE_URL }}
 
@@ -49,6 +49,8 @@ jobs:
       - run: flutter pub get
 
       - run: flutter analyze --no-fatal-infos
+
+      - run: flutter test
 
       # Firma release opzionale: se i secrets non ci sono, l'APK è firmato con la chiave di debug.
       - name: Prepara keystore di firma
@@ -118,3 +120,4 @@ jobs:
           name: scontrini-ios-unsigned
           path: scontrini-unsigned.ipa
           retention-days: 30
+

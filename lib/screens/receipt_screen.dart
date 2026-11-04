@@ -199,7 +199,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         ListTile(
-          title: Text(r.merchant?.isNotEmpty == true ? r.merchant! : 'Esercente sconosciuto', style: theme.textTheme.titleLarge),
+          title: Text(r.merchant?.isNotEmpty == true ? r.merchant! : 'Esercente sconosciuto',
+              style: theme.textTheme.titleLarge),
           subtitle: Text([
             dateTime(r.purchasedAt),
             if (r.paymentMethod != null && r.paymentMethod!.isNotEmpty) r.paymentMethod!,
@@ -221,7 +222,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         const Divider(),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Text('Righe (${r.items.length}) — tocca la categoria per cambiarla', style: theme.textTheme.labelLarge),
+          child:
+              Text('Righe (${r.items.length}) — tocca la categoria per cambiarla', style: theme.textTheme.labelLarge),
         ),
         for (final item in r.items)
           ListTile(
@@ -229,7 +231,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
             subtitle: Align(
               alignment: Alignment.centerLeft,
               child: ActionChip(
-                avatar: CircleAvatar(backgroundColor: state.category(item.categoryId)?.colorValue ?? Colors.grey, radius: 6),
+                avatar: CircleAvatar(
+                    backgroundColor: state.category(item.categoryId)?.colorValue ?? Colors.grey, radius: 6),
                 label: Text(state.category(item.categoryId)?.name ?? 'Senza categoria'),
                 onPressed: () => _pickCategory(item),
                 visualDensity: VisualDensity.compact,
@@ -250,7 +253,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         if (r.aiModel != null)
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text('Analizzato con ${r.aiModel}. Tieni premuta una riga per modificarla.', style: theme.textTheme.bodySmall),
+            child: Text('Analizzato con ${r.aiModel}. Tieni premuta una riga per modificarla.',
+                style: theme.textTheme.bodySmall),
           ),
       ],
     );

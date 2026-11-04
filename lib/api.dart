@@ -76,8 +76,7 @@ class Api {
   // Scontrini
   Future<Receipt> scan(Uint8List image, String mimeType) async {
     final data = await _send('POST', '/scan',
-        body: {'image_base64': base64Encode(image), 'mime_type': mimeType},
-        timeout: const Duration(seconds: 120));
+        body: {'image_base64': base64Encode(image), 'mime_type': mimeType}, timeout: const Duration(seconds: 120));
     return Receipt.fromJson(data as Map<String, dynamic>);
   }
 

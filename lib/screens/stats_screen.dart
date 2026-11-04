@@ -69,7 +69,8 @@ class _StatsScreenState extends State<StatsScreen> {
         const Divider(),
         Expanded(
           child: _error != null
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, textAlign: TextAlign.center)))
+              ? Center(
+                  child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, textAlign: TextAlign.center)))
               : totals == null
                   ? const Center(child: CircularProgressIndicator())
                   : totals.isEmpty

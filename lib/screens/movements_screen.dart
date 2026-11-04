@@ -146,7 +146,8 @@ class _MovementsScreenState extends State<MovementsScreen> {
 
   Widget _body(List<Receipt>? receipts) {
     if (_error != null) {
-      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, textAlign: TextAlign.center)));
+      return Center(
+          child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, textAlign: TextAlign.center)));
     }
     if (receipts == null) return const Center(child: CircularProgressIndicator());
     if (receipts.isEmpty) {
@@ -154,7 +155,9 @@ class _MovementsScreenState extends State<MovementsScreen> {
         onRefresh: _load,
         child: ListView(children: const [
           SizedBox(height: 120),
-          Center(child: Text('Nessuno scontrino in questo mese.\nPremi "Scansiona" per aggiungerne uno.', textAlign: TextAlign.center)),
+          Center(
+              child: Text('Nessuno scontrino in questo mese.\nPremi "Scansiona" per aggiungerne uno.',
+                  textAlign: TextAlign.center)),
         ]),
       );
     }
