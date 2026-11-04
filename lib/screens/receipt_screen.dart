@@ -207,6 +207,19 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
           ].join(' · ')),
           trailing: Text(money(r.total, r.currency), style: theme.textTheme.headlineSmall),
         ),
+        if (r.purchasedAt != null && DateTime.now().difference(r.purchasedAt!).inDays > 60)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Card(
+              color: theme.colorScheme.tertiaryContainer,
+              child: ListTile(
+                leading: const Icon(Icons.event_busy),
+                title: Text('Data letta: ${dateTime(r.purchasedAt)}'),
+                subtitle: const Text('È più vecchia di due mesi: se è sbagliata, correggila.'),
+                trailing: TextButton(onPressed: _editHeader, child: const Text('Modifica')),
+              ),
+            ),
+          ),
         if (mismatch)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

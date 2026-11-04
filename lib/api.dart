@@ -89,6 +89,17 @@ class Api {
     return data.map((e) => Receipt.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// Tutti gli scontrini, scaricati a pagine.
+  Future<List<Receipt>> allReceipts() async {
+    const page = 500;
+    final out = <Receipt>[];
+    while (true) {
+      final data = await _send('GET', '/receipts', query: {'limit': '$page', 'offset': '${out.length}'}) as List;
+      out.addAll(data.map((e) => Receipt.fromJson(e as Map<String, dynamic>)));
+      if (data.length < page) return out;
+    }
+  }
+
   Future<Receipt> receipt(String id) async =>
       Receipt.fromJson(await _send('GET', '/receipts/$id') as Map<String, dynamic>);
 

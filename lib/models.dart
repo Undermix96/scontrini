@@ -66,7 +66,11 @@ class Receipt {
   int itemCount;
   List<ReceiptItem> items;
 
+  /// Valorizzato solo dalla risposta di /scan se esiste già uno scontrino simile.
+  String? possibleDuplicateOf;
+
   Receipt({
+    this.possibleDuplicateOf,
     required this.id,
     this.merchant,
     this.purchasedAt,
@@ -102,6 +106,7 @@ class Receipt {
       aiModel: j['ai_model'] as String?,
       itemCount: count,
       items: items,
+      possibleDuplicateOf: j['possible_duplicate_of'] as String?,
     );
   }
 }

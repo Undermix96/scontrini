@@ -23,8 +23,24 @@ void main() {
       'id': 'b',
       'total': 5,
       'items': [
-        {'id': 'i1', 'position': 0, 'description': 'Latte', 'quantity': 2, 'unit_price': 1.2, 'total': 2.4, 'category_id': 1},
-        {'id': 'i2', 'position': 1, 'description': 'Sconto', 'quantity': null, 'unit_price': null, 'total': -0.4, 'category_id': null},
+        {
+          'id': 'i1',
+          'position': 0,
+          'description': 'Latte',
+          'quantity': 2,
+          'unit_price': 1.2,
+          'total': 2.4,
+          'category_id': 1
+        },
+        {
+          'id': 'i2',
+          'position': 1,
+          'description': 'Sconto',
+          'quantity': null,
+          'unit_price': null,
+          'total': -0.4,
+          'category_id': null
+        },
       ],
     });
     expect(r.currency, 'EUR');

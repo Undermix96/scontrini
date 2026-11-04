@@ -4,9 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import '../format.dart';
 import '../main.dart';
 import '../models.dart';
-import 'month_picker.dart';
 import 'receipt_screen.dart';
 
+/// Tutti i movimenti, dal più recente, raggruppati per mese con subtotale.
 class MovementsScreen extends StatefulWidget {
   const MovementsScreen({super.key});
 
@@ -15,7 +15,6 @@ class MovementsScreen extends StatefulWidget {
 }
 
 class _MovementsScreenState extends State<MovementsScreen> {
-  DateTime _month = monthStart(DateTime.now());
   List<Receipt>? _receipts;
   String? _error;
   bool _scanning = false;
@@ -41,7 +40,7 @@ class _MovementsScreenState extends State<MovementsScreen> {
     }
     setState(() => _error = null);
     try {
-      final list = await s.api.receipts(from: monthStart(_month), to: monthEnd(_month));
+      final list = await s.api.allReceipts();
       if (mounted) setState(() => _receipts = list);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -68,6 +67,15 @@ class _MovementsScreenState extends State<MovementsScreen> {
       if (s.categories.isEmpty) await s.reloadCategories();
       final receipt = await s.api.scan(bytes, mime);
       if (!mounted) return;
+      if (receipt.possibleDuplicateOf != null) {
+        final keep = await _askDuplicate();
+        if (keep == false) {
+          await s.api.deleteReceipt(receipt.id);
+          messenger.showSnackBar(const SnackBar(content: Text('Doppione eliminato.')));
+          await _load();
+          return;
+        }
+      }
       await navigator.push(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: receipt.id, initial: receipt)));
       await _load();
     } catch (e) {
@@ -76,6 +84,19 @@ class _MovementsScreenState extends State<MovementsScreen> {
       if (mounted) setState(() => _scanning = false);
     }
   }
+
+  Future<bool?> _askDuplicate() => showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Possibile doppione'),
+          content: const Text('Esiste già uno scontrino con lo stesso totale, data e ora. Vuoi tenerlo comunque?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Elimina il nuovo')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Tienilo')),
+          ],
+        ),
+      );
 
   void _chooseSource() {
     showModalBottomSheet<void>(
@@ -105,8 +126,6 @@ class _MovementsScreenState extends State<MovementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final receipts = _receipts;
-    final total = receipts?.fold<double>(0, (s, r) => s + r.total) ?? 0;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Movimenti'),
@@ -119,28 +138,7 @@ class _MovementsScreenState extends State<MovementsScreen> {
             : const Icon(Icons.document_scanner),
         label: Text(_scanning ? 'Analisi in corso…' : 'Scansiona'),
       ),
-      body: Column(children: [
-        MonthBar(
-          month: _month,
-          onChanged: (m) {
-            setState(() {
-              _month = m;
-              _receipts = null;
-            });
-            _load();
-          },
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Row(children: [
-            Text('Totale del mese', style: Theme.of(context).textTheme.bodyLarge),
-            const Spacer(),
-            Text(money(total), style: Theme.of(context).textTheme.titleLarge),
-          ]),
-        ),
-        const Divider(),
-        Expanded(child: _body(receipts)),
-      ]),
+      body: _body(_receipts),
     );
   }
 
@@ -156,24 +154,51 @@ class _MovementsScreenState extends State<MovementsScreen> {
         child: ListView(children: const [
           SizedBox(height: 120),
           Center(
-              child: Text('Nessuno scontrino in questo mese.\nPremi "Scansiona" per aggiungerne uno.',
-                  textAlign: TextAlign.center)),
+              child: Text('Nessuno scontrino.\nPremi "Scansiona" per aggiungerne uno.', textAlign: TextAlign.center)),
         ]),
       );
     }
+
+    // Raggruppa per mese (le date sono già in ordine decrescente).
+    final rows = <Object>[];
+    final monthTotals = <DateTime, double>{};
+    DateTime? current;
+    for (final r in receipts) {
+      final d = r.purchasedAt ?? DateTime(1970);
+      final m = DateTime(d.year, d.month);
+      monthTotals[m] = (monthTotals[m] ?? 0) + r.total;
+      if (m != current) {
+        rows.add(m);
+        current = m;
+      }
+      rows.add(r);
+    }
+
+    final theme = Theme.of(context);
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
+      child: ListView.builder(
         padding: const EdgeInsets.only(bottom: 96),
-        itemCount: receipts.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemCount: rows.length,
         itemBuilder: (ctx, i) {
-          final r = receipts[i];
+          final row = rows[i];
+          if (row is DateTime) {
+            return Container(
+              color: theme.colorScheme.surfaceContainerHighest,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(children: [
+                Text(monthLabel(row), style: theme.textTheme.titleSmall),
+                const Spacer(),
+                Text(money(monthTotals[row] ?? 0), style: theme.textTheme.titleSmall),
+              ]),
+            );
+          }
+          final r = row as Receipt;
           return ListTile(
             leading: const CircleAvatar(child: Icon(Icons.receipt)),
             title: Text(r.merchant?.isNotEmpty == true ? r.merchant! : 'Esercente sconosciuto'),
             subtitle: Text('${dateTime(r.purchasedAt)} · ${r.itemCount} righe'),
-            trailing: Text(money(r.total, r.currency), style: Theme.of(ctx).textTheme.titleMedium),
+            trailing: Text(money(r.total, r.currency), style: theme.textTheme.titleMedium),
             onTap: () async {
               await Navigator.of(ctx).push(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: r.id)));
               _load();

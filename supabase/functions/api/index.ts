@@ -4,6 +4,7 @@
 //   APP_TOKEN           token condiviso con l'app (header "x-app-token")
 //   OPENROUTER_API_KEY  chiave API di OpenRouter
 //   OPENROUTER_MODEL    (opzionale) modello vision, default google/gemini-2.5-flash
+//   APP_TIMEZONE        (opzionale) fuso per le date degli scontrini, default Europe/Rome
 // SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY sono forniti automaticamente.
 //
 // Rotte (prefisso /functions/v1/api):
@@ -191,16 +192,23 @@ async function scan(req: Request) {
   const itemsSum = items.reduce((s: number, it: any) => s + (num(it.total) ?? 0), 0);
   const total = num(parsed.total) ?? num(itemsSum) ?? 0;
 
-  let purchasedAt: string | null = null;
-  if (parsed.purchased_at) {
-    const d = new Date(parsed.purchased_at);
-    if (!isNaN(d.getTime())) purchasedAt = d.toISOString();
-  }
+  let purchasedAt = parseLocalDate(parsed.purchased_at);
+  // Una data nel futuro è certamente un errore di lettura: usa adesso.
+  if (purchasedAt && purchasedAt.getTime() > Date.now() + 24 * 3600 * 1000) purchasedAt = null;
+  const purchasedIso = (purchasedAt ?? new Date()).toISOString();
+
+  // Possibile doppione: stesso totale e stessa data/ora (al minuto).
+  const dup = await db.from("receipts").select("id")
+    .eq("total", total)
+    .gte("purchased_at", new Date(Date.parse(purchasedIso) - 60_000).toISOString())
+    .lte("purchased_at", new Date(Date.parse(purchasedIso) + 60_000).toISOString())
+    .limit(1);
+  const possibleDuplicate = dup.data?.[0]?.id ?? null;
 
   const receipt = check(
     await db.from("receipts").insert({
       merchant: parsed.merchant ?? null,
-      purchased_at: purchasedAt ?? new Date().toISOString(),
+      purchased_at: purchasedIso,
       total,
       currency: (parsed.currency || "EUR").toString().toUpperCase().slice(0, 3),
       payment_method: parsed.payment_method ?? null,
@@ -225,7 +233,34 @@ async function scan(req: Request) {
       throw new HttpError(500, ins.error.message);
     }
   }
-  return json(await getReceipt(receipt.id), 201);
+  return json({ ...(await getReceipt(receipt.id)), possible_duplicate_of: possibleDuplicate }, 201);
+}
+
+/**
+ * Interpreta la data letta dallo scontrino. Se non ha fuso orario esplicito,
+ * la considera ora locale di APP_TIMEZONE (default Europe/Rome).
+ */
+function parseLocalDate(value: unknown): Date | null {
+  if (!value || typeof value !== "string") return null;
+  const s = value.trim();
+  if (/([zZ]|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return null;
+  const [y, mo, d, h = "12", mi = "00", se = "00"] = m.slice(1);
+  const asUtc = Date.UTC(+y, +mo - 1, +d, +h, +mi, +se);
+  if (isNaN(asUtc)) return null;
+  const tz = Deno.env.get("APP_TIMEZONE") || "Europe/Rome";
+  // Calcola l'offset del fuso in quel momento (gestisce ora legale/solare).
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(asUtc));
+  const get = (t: string) => +(parts.find((p) => p.type === t)?.value ?? 0);
+  const zoned = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return new Date(asUtc - (zoned - asUtc));
 }
 
 // ---------------------------------------------------------------- CRUD
