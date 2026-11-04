@@ -1,0 +1,6 @@
+# Configurazione minima per la Supabase CLI (project ref: iayyyjzjjjbhczzbphof).
+project_id = "scontrini"
+
+[functions.api]
+# La function fa la propria autenticazione con l'header x-app-token.
+verify_jwt = false
