@@ -12,7 +12,8 @@ class AppConfig {
   static const _kToken = 'app_token';
 
   static const _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    // Cifratura di default della 11.x (AES-GCM con chiave nel Keystore).
+    aOptions: AndroidOptions(),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
   );
 

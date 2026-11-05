@@ -1,6 +1,9 @@
 name: scontrini
 description: "Fotografa gli scontrini, estrai righe e categorie con l'AI e tieni traccia delle spese."
 publish_to: 'none'
+# In CI nome e numero di build vengono sovrascritti: nome = data (CalVer,
+# es. 2026.11.5), build = numero dell'esecuzione del workflow. Vedi
+# .github/workflows/build.yml. Questo valore vale solo per le build locali.
 version: 0.1.0+1
 
 environment:
@@ -14,11 +17,9 @@ dependencies:
     sdk: flutter
   http: ^1.2.2
   image_picker: ^1.1.2
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^11.2.0
   intl: ^0.20.2
   url_launcher: ^6.3.3
-  package_info_plus: ^9.0.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

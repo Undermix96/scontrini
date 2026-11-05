@@ -72,6 +72,17 @@ Il workflow [`Build app`](.github/workflows/build.yml) parte **solo manualmente*
 
 Variabile del repo (non segreta): `SUPABASE_URL`, che viene precompilata nell'app.
 
+### Versioni
+
+Le versioni seguono la data (CalVer) e sono assegnate dal workflow, senza modificare `pubspec.yaml`:
+
+- **nome**: la data della build nel fuso Europe/Rome, per esempio `2026.11.5`;
+- **numero di build**: il numero dell'esecuzione del workflow, sempre crescente, che distingue più build nello stesso giorno.
+
+In *Impostazioni → Informazioni* compare come `2026.11.5 (build 57)`; nelle build locali come "sviluppo". Gli artifact hanno lo stesso nome (`scontrini-android-2026.11.5-b57`). Su Android il `versionCode` include anche l'offset per architettura che Flutter aggiunge con `--split-per-abi`.
+
+> **Aggiornamento da una build con versione 0.1.0 (Android).** `flutter_secure_storage` è passato dalla 9 alla 11, che non legge più i dati salvati con il vecchio sistema. Al primo avvio l'app chiede di nuovo indirizzo e token: l'indirizzo è già precompilato, basta incollare il token. I dati sul server non cambiano.
+
 ## Sviluppo locale
 
 ```bash

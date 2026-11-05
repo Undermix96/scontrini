@@ -23,8 +23,27 @@ env:
   SUPABASE_URL: ${{ vars.SUPABASE_URL }}
 
 jobs:
+  # Versione CalVer: nome = data della build (fuso Europe/Rome, es. 2026.11.5),
+  # numero di build = numero dell'esecuzione del workflow (sempre crescente,
+  # distingue più build nello stesso giorno). Calcolata una volta per tutti i job.
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      name: ${{ steps.v.outputs.name }}
+      build: ${{ steps.v.outputs.build }}
+    steps:
+      - id: v
+        run: |
+          read -r y m d <<< "$(TZ=Europe/Rome date '+%Y %m %d')"
+          name="$y.$((10#$m)).$((10#$d))"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Versione $name (build ${{ github.run_number }})"
+
   android:
     if: ${{ inputs.android }}
+    needs: version
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -74,7 +93,14 @@ jobs:
           fi
 
       - name: Build APK
-        run: flutter build apk --release --split-per-abi --dart-define=SUPABASE_URL="$SUPABASE_URL"
+        env:
+          APP_VERSION: ${{ needs.version.outputs.name }}
+          APP_BUILD: ${{ needs.version.outputs.build }}
+        run: >-
+          flutter build apk --release --split-per-abi
+          --build-name="$APP_VERSION" --build-number="$APP_BUILD"
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=APP_VERSION="$APP_VERSION" --dart-define=APP_BUILD="$APP_BUILD"
 
       - name: Rimuovi keystore
         if: always()
@@ -82,12 +108,13 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: scontrini-android
+          name: scontrini-android-${{ needs.version.outputs.name }}-b${{ needs.version.outputs.build }}
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 30
 
   ios:
     if: ${{ inputs.ios }}
+    needs: version
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -107,7 +134,14 @@ jobs:
       - run: flutter pub get
 
       - name: Build iOS (senza firma)
-        run: flutter build ios --release --no-codesign --dart-define=SUPABASE_URL="$SUPABASE_URL"
+        env:
+          APP_VERSION: ${{ needs.version.outputs.name }}
+          APP_BUILD: ${{ needs.version.outputs.build }}
+        run: >-
+          flutter build ios --release --no-codesign
+          --build-name="$APP_VERSION" --build-number="$APP_BUILD"
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=APP_VERSION="$APP_VERSION" --dart-define=APP_BUILD="$APP_BUILD"
 
       - name: Crea IPA non firmato
         run: |
@@ -117,7 +151,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: scontrini-ios-unsigned
+          name: scontrini-ios-unsigned-${{ needs.version.outputs.name }}-b${{ needs.version.outputs.build }}
           path: scontrini-unsigned.ipa
           retention-days: 30
 

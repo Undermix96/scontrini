@@ -1,28 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../theme/tokens.dart';
+import '../version.dart';
 import '../widgets/common.dart';
 import '../widgets/connection_form.dart';
 import '../widgets/floating_nav_bar.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  String? _version;
-
-  @override
-  void initState() {
-    super.initState();
-    PackageInfo.fromPlatform().then((p) {
-      if (mounted) setState(() => _version = '${p.version} (${p.buildNumber})');
-    }).catchError((_) {});
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(Radii.md)),
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Column(children: [
-                  _InfoRow(label: 'Versione', value: _version ?? '—'),
+                  _InfoRow(label: 'Versione', value: versionLabel()),
                   _InfoRow(label: 'Codice sorgente', value: 'GitHub', onTap: openSource, link: true),
                   const _InfoRow(label: 'Licenza', value: 'GPL-3.0'),
                 ]),
