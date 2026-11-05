@@ -59,6 +59,27 @@ void main() {
     await _loadFonts();
   });
 
+  // Testo ingrandito a 1,3: nessun importo tagliato (checklist del design).
+  for (final tab in [AppTab.movements, AppTab.stats, AppTab.categories]) {
+    testWidgets('text 1.3 ${tab.name}', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final s = await _setup(tester, FakeServer(), Brightness.dark);
+      s.setTab(tab);
+      await tester.pumpAndSettle();
+      await _shot('text13_${tab.name}');
+    });
+  }
+
+  testWidgets('text 1.3 receipt', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _setup(tester, FakeServer(), Brightness.light);
+    await tester.tap(find.text('Esselunga'));
+    await tester.pumpAndSettle();
+    await _shot('text13_receipt');
+  });
+
   for (final b in Brightness.values) {
     final t = b == Brightness.dark ? 'dark' : 'light';
 
