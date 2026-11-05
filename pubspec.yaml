@@ -16,11 +16,28 @@ dependencies:
   image_picker: ^1.1.2
   flutter_secure_storage: ^9.2.2
   intl: ^0.20.2
+  url_launcher: ^6.3.3
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
 
 flutter:
   uses-material-design: true
+  # Manrope (SIL Open Font License 1.1, vedi assets/fonts/OFL.txt), incluso
+  # nell'app: nessun font scaricato a runtime.
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800

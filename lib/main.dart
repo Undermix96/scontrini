@@ -8,6 +8,7 @@ import 'models.dart';
 import 'screens/movements_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stats_screen.dart';
+import 'theme/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,7 +65,6 @@ class ScontriniApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final seed = Colors.teal;
     return AppScope(
       state: state,
       child: MaterialApp(
@@ -77,8 +77,9 @@ class ScontriniApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        theme: ThemeData(colorSchemeSeed: seed, useMaterial3: true),
-        darkTheme: ThemeData(colorSchemeSeed: seed, useMaterial3: true, brightness: Brightness.dark),
+        theme: buildTheme(Brightness.light),
+        darkTheme: buildTheme(Brightness.dark),
+        themeMode: ThemeMode.system,
         home: const HomeShell(),
       ),
     );
