@@ -90,9 +90,11 @@ class _BannerButton extends StatelessWidget {
           height: 36,
           constraints: const BoxConstraints(minWidth: 44),
           padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          child: Text(action.label,
-              style: AppText.buttonSmall.copyWith(color: action.filled ? c.warningContainer : c.onWarningContainer)),
+          child: Center(
+            widthFactor: 1,
+            child: Text(action.label,
+                style: AppText.buttonSmall.copyWith(color: action.filled ? c.warningContainer : c.onWarningContainer)),
+          ),
         ),
       ),
     );

@@ -41,8 +41,12 @@ String monthLabel(DateTime d) => _cap(DateFormat('MMMM yyyy', 'it_IT').format(d)
 /// "novembre"
 String monthName(DateTime d) => DateFormat('MMMM', 'it_IT').format(d);
 
-/// "Nov 2026"
-String shortMonthLabel(DateTime d) => _cap(DateFormat('MMM yyyy', 'it_IT').format(d).replaceAll('.', ''));
+/// "Novembre" nell'anno in corso, altrimenti "Nov 2025".
+String shortMonthLabel(DateTime d, {DateTime? now}) {
+  now ??= DateTime.now();
+  if (d.year == now.year) return _cap(DateFormat('MMMM', 'it_IT').format(d));
+  return _cap(DateFormat('MMM yyyy', 'it_IT').format(d).replaceAll('.', ''));
+}
 
 /// Quantità senza decimali inutili: 2 → "2", 1.24 → "1,24".
 String quantity(double q) => q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toString().replaceAll('.', ',');

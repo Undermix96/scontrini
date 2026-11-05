@@ -18,9 +18,9 @@ class ApiException implements Exception {
 /// l'app parla solo con il proprio progetto Supabase.
 class Api {
   final AppConfig config;
-  final http.Client _http = http.Client();
+  final http.Client _http;
 
-  Api(this.config);
+  Api(this.config, {http.Client? client}) : _http = client ?? http.Client();
 
   static Uri _uri(String base, String path, [Map<String, String>? query]) =>
       Uri.parse('$base/functions/v1/api$path').replace(queryParameters: query);

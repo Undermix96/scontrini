@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
-import 'api.dart';
+import 'app_state.dart';
 import 'config.dart';
-import 'models.dart';
+import 'scan_controller.dart';
+import 'screens/categories_screen.dart';
 import 'screens/movements_screen.dart';
+import 'screens/receipt_screen.dart';
+import 'screens/scan_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/setup_screen.dart';
 import 'screens/stats_screen.dart';
 import 'theme/theme.dart';
+import 'widgets/common.dart';
+import 'widgets/floating_nav_bar.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,47 +23,6 @@ Future<void> main() async {
   final config = AppConfig();
   await config.load();
   runApp(ScontriniApp(state: AppState(config)));
-}
-
-/// Stato condiviso minimale: configurazione, client API e categorie.
-class AppState extends ChangeNotifier {
-  final AppConfig config;
-  late final Api api = Api(config);
-  List<Category> categories = [];
-
-  AppState(this.config);
-
-  Category? category(int? id) {
-    for (final c in categories) {
-      if (c.id == id) return c;
-    }
-    return null;
-  }
-
-  Future<void> reloadCategories() async {
-    if (!config.isConfigured) return;
-    categories = await api.categories();
-    notifyListeners();
-  }
-
-  /// Incrementato a ogni salvataggio della configurazione: le schermate lo
-  /// osservano per ricaricare i dati.
-  int configVersion = 0;
-
-  Future<void> configSaved() async {
-    configVersion++;
-    try {
-      await reloadCategories();
-    } finally {
-      notifyListeners();
-    }
-  }
-}
-
-class AppScope extends InheritedNotifier<AppState> {
-  const AppScope({super.key, required AppState state, required super.child}) : super(notifier: state);
-
-  static AppState of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<AppScope>()!.notifier!;
 }
 
 class ScontriniApp extends StatelessWidget {
@@ -80,8 +46,22 @@ class ScontriniApp extends StatelessWidget {
         theme: buildTheme(Brightness.light),
         darkTheme: buildTheme(Brightness.dark),
         themeMode: ThemeMode.system,
-        home: const HomeShell(),
+        home: const _Root(),
       ),
+    );
+  }
+}
+
+/// Primo avvio finché l'app non è configurata, poi la shell con le schede.
+class _Root extends StatelessWidget {
+  const _Root();
+
+  @override
+  Widget build(BuildContext context) {
+    final configured = AppScope.of(context).config.isConfigured;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: configured ? const HomeShell(key: ValueKey('shell')) : const SetupScreen(key: ValueKey('setup')),
     );
   }
 }
@@ -94,38 +74,68 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  late int _index;
+  late final AppState _state = AppScope.read(context);
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final state = AppScope.of(context);
-    if (!_initialized) {
-      _initialized = true;
-      _index = state.config.isConfigured ? 0 : 2;
-      state.reloadCategories().catchError((_) {});
+  void initState() {
+    super.initState();
+    _state.reloadCategories().catchError((_) {});
+    _state.scan.addListener(_onScan);
+  }
+
+  @override
+  void dispose() {
+    _state.scan.removeListener(_onScan);
+    super.dispose();
+  }
+
+  /// Risultato di un'analisi proseguita in sottofondo.
+  void _onScan() {
+    final scan = _state.scan;
+    final job = scan.job;
+    if (job == null || scan.screenAttached || !mounted) return;
+    if (job.status == ScanStatus.done) {
+      final r = job.result!;
+      scan.clear();
+      showSnack(context, 'Scontrino letto: ${r.displayMerchant}', actionLabel: 'Apri', onAction: () {
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: r.id)));
+      });
+    } else if (job.status == ScanStatus.error) {
+      showSnack(context, 'Lettura non riuscita', actionLabel: 'Riprova', onAction: () {
+        scan.retry();
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ScanScreen()));
+      });
     }
   }
 
-  bool _initialized = false;
-
   @override
   Widget build(BuildContext context) {
-    const pages = [MovementsScreen(), StatsScreen(), SettingsScreen()];
-    return Scaffold(
-      // Ricostruisce la pagina a ogni cambio tab, così i dati sono sempre aggiornati.
-      body: pages[_index],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Movimenti'),
-          NavigationDestination(
-              icon: Icon(Icons.pie_chart_outline), selectedIcon: Icon(Icons.pie_chart), label: 'Categorie'),
-          NavigationDestination(
-              icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Impostazioni'),
-        ],
+    final state = AppScope.of(context);
+    final tab = state.tab;
+    return PopScope(
+      canPop: tab == AppTab.movements,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) state.setTab(AppTab.movements);
+      },
+      child: Scaffold(
+        body: Stack(children: [
+          Positioned.fill(
+            child: IndexedStack(
+              index: tab.index,
+              children: const [MovementsScreen(), StatsScreen(), CategoriesScreen(), SettingsScreen()],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: FloatingNavBar(
+              current: tab,
+              onSelect: state.setTab,
+              onCamera: () => startScanFlow(context),
+            ),
+          ),
+        ]),
       ),
     );
   }
