@@ -1,0 +1,13 @@
+# Icone dell'app generate da assets/branding (vedi docs/design/README.md).
+#   dart run flutter_launcher_icons
+# I PNG si rigenerano dagli SVG in docs/design/brand/.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/icon.png
+  remove_alpha_ios: true
+  adaptive_icon_background: "#6A5AE0"
+  adaptive_icon_foreground: assets/branding/adaptive-foreground.png
+  # Il primo piano è già disegnato sulla griglia di 108 dp con la zona sicura.
+  adaptive_icon_foreground_inset: 0
+  adaptive_icon_monochrome: assets/branding/adaptive-monochrome.png

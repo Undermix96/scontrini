@@ -1,0 +1,15 @@
+# Splash generato da assets/branding (vedi docs/design/README.md).
+#   dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#F4F3F8"
+  color_dark: "#0C0C10"
+  image: assets/branding/mark.png
+  image_dark: assets/branding/mark.png
+  android_12:
+    color: "#F4F3F8"
+    color_dark: "#0C0C10"
+    image: assets/branding/adaptive-foreground.png
+    image_dark: assets/branding/adaptive-foreground.png
+    icon_background_color: "#6A5AE0"
+    icon_background_color_dark: "#6A5AE0"
+  web: false
