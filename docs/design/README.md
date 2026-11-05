@@ -612,17 +612,24 @@ La logica (API, modelli, `AppState`, salvataggio sicuro del token) non cambia, s
 
 ## Decisioni aperte
 
-Punti che il design non può decidere da solo. Vanno chiariti prima o durante l'implementazione.
+Decisioni prese per l'implementazione (novembre 2026):
 
-1. **Colori delle categorie del seed.** Applicare la palette proposta richiede una nuova migrazione che aggiorni `categories.color` per le 10 categorie predefinite, solo dove l'utente non le ha ricolorate (cioè dove il colore è ancora quello del seed originale).
-2. **Categoria prevalente e avvisi nell'elenco.** La lista di Movimenti oggi riceve solo `itemCount`. Per mostrare pallino, categoria e badge senza scaricare tutte le righe serve che l'API restituisca, per ogni scontrino, la categoria prevalente e la somma delle righe (o direttamente gli avvisi).
-3. **Avvisi ignorati.** "Va bene così", "Non è un doppione" ed "È giusta" richiedono un campo persistente sullo scontrino, per esempio `dismissed_warnings text[]`.
-4. **Possibile doppione dopo la scansione.** Oggi `possibleDuplicateOf` esiste solo nella risposta di `/scan`. Per il badge e il banner servirebbe salvarlo, oppure calcolarlo lato server a ogni lettura.
-5. **Numero di righe per categoria** (scheda Categorie): serve un conteggio dall'API. Se è costoso, si può omettere.
-6. **Confronto col mese precedente** (scheda Spese): richiede il totale del mese precedente, ottenibile con una seconda chiamata alle statistiche.
-7. **Cerca e Filtra** in Movimenti: sono nel design, ma non esistono né nell'API né nell'app. Proposta: Cerca per esercente e descrizione delle righe, Filtra per categoria. Si possono rimandare: in quel caso nascondi i due controlli.
-8. **Aggiungere ed eliminare righe**: l'API oggi ha solo `PATCH /items/:id`. "Aggiungi riga" ed eliminare con un trascinamento richiedono `POST /receipts/:id/items` e `DELETE /items/:id`. Finché mancano, nascondi "Aggiungi riga" e il trascinamento.
-9. **Formato degli importi**: si usa `money()` (`64,20 €`). Se si preferisce il simbolo davanti, come nelle tavole, va cambiato solo lì.
+1. **Colori delle categorie del seed**: la migrazione `20261105000000_design.sql` applica la nuova palette a tutte e 10 le categorie predefinite.
+2. **Categoria prevalente e avvisi nell'elenco**: `GET /receipts` restituisce `items_sum`, `dominant_category_id` e `warnings`, calcolati dal server.
+3. **Avvisi ignorati**: colonna `dismissed_warnings text[]` sugli scontrini, aggiornata con `PATCH /receipts/:id`.
+4. **Possibile doppione**: colonna `duplicate_of`, salvata da `/scan` (con recupero per gli scontrini già presenti). Il dettaglio riceve anche esercente e data dell'altro scontrino.
+5. **Numero di righe per categoria**: `GET /categories` restituisce `item_count`.
+6. **Confronto col mese precedente**: seconda chiamata a `/stats`.
+7. **Cerca e Filtra**: implementati. Cerca su esercente e descrizione delle righe (`q`), Filtra per categoria (`category_id`). Toccare una categoria in Spese apre Movimenti filtrato.
+8. **Aggiungere ed eliminare righe**: `POST /receipts/:id/items` e `DELETE /items/:id`. L'eliminazione col trascinamento si annulla dallo snackbar.
+9. **Formato degli importi**: resta `64,20 €` (`money()`).
+
+Altre scelte:
+
+- **Indietro e Annulla durante l'analisi**: Indietro lascia proseguire la lettura in sottofondo (riga "Lettura in corso…" in Movimenti, poi uno snackbar con "Apri"); Annulla la interrompe e, se il server ha comunque salvato lo scontrino, l'app lo elimina appena arriva la risposta.
+- **Metodo di pagamento**: compare nel dettaglio dopo data e ora ("Gio 5 novembre 2026 · 18:42 · Carta") ed è modificabile.
+- **Avviso sulla data**: confronta la data letta con `created_at` (più vecchia di 60 giorni o più di un giorno nel futuro).
+- **Font**: il repository `sharanda/manrope` indicato sopra non esiste più. I file in `assets/fonts/` sono istanze statiche (500–800) del font variabile OFL pubblicato in `google/fonts`.
 
 ---
 

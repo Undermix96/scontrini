@@ -21,7 +21,7 @@ App Flutter ──(HTTPS, header x-app-token)──▶ Supabase Edge Function "a
 - Le tabelle hanno **RLS attiva senza policy** e nessun privilegio per `anon` e `authenticated`: dall'esterno non si possono né leggere né scrivere.
 - La Edge Function usa la service role, che resta sul server, e accetta solo richieste con il token `APP_TOKEN`.
 - La chiave OpenRouter esiste **solo** nei secrets di Supabase, mai nell'app né nel repo.
-- Il token dell'app **non viene compilato nel binario**: lo inserisci una volta in *Impostazioni* e viene salvato cifrato nel Keystore (Android) o nel Keychain (iOS).
+- Il token dell'app **non viene compilato nel binario**: lo inserisci una volta al primo avvio e viene salvato cifrato nel Keystore (Android) o nel Keychain (iOS).
 
 ## Configurazione
 
@@ -49,7 +49,7 @@ In PowerShell:
 
 ### 2. App
 
-Al primo avvio apri **Impostazioni**. L'URL del progetto Supabase è già precompilato (`https://iayyyjzjjjbhczzbphof.supabase.co`): incolla l'`APP_TOKEN` e premi *Salva e verifica*.
+Al primo avvio l'app chiede **indirizzo del server** e **token di accesso**. L'URL del progetto Supabase è già precompilato (`https://iayyyjzjjjbhczzbphof.supabase.co`): incolla l'`APP_TOKEN` e premi *Prova e collega*. La configurazione viene salvata solo se la verifica riesce; la puoi cambiare in seguito da *Impostazioni*.
 
 ## Build (GitHub Actions)
 
@@ -82,6 +82,28 @@ flutter pub get
 flutter run --dart-define=SUPABASE_URL=https://iayyyjzjjjbhczzbphof.supabase.co
 ```
 
+Test:
+
+```bash
+flutter test
+```
+
+Schermate in tema chiaro e scuro, da confrontare con le tavole del design (finiscono in `tool/screenshots/out/`):
+
+```bash
+flutter test tool/screenshots --update-goldens
+```
+
+Icone e splash si rigenerano dai PNG in `assets/branding/` (ricavati dagli SVG di `docs/design/brand/`):
+
+```bash
+dart run flutter_launcher_icons
+```
+
+```bash
+dart run flutter_native_splash:create
+```
+
 Backend:
 - schema: `supabase/migrations/`
 - Edge Function: `supabase/functions/api/`
@@ -100,16 +122,19 @@ Tutte le richieste richiedono l'header `x-app-token`.
 |---|---|---|
 | GET | `/health` | test della connessione |
 | POST | `/scan` | `{image_base64, mime_type}`: analizza e salva uno scontrino |
-| GET | `/receipts?from&to` | elenco degli scontrini |
-| GET/PATCH/DELETE | `/receipts/:id` | dettaglio, modifica o eliminazione |
-| PATCH | `/items/:id` | modifica una riga (es. `category_id`) |
-| GET/POST | `/categories` | elenco o creazione di una categoria |
+| GET | `/receipts?from&to&q&category_id` | elenco degli scontrini, con ricerca, filtro, avvisi e categoria prevalente |
+| GET/PATCH/DELETE | `/receipts/:id` | dettaglio, modifica (anche `dismissed_warnings`) o eliminazione |
+| POST | `/receipts/:id/items` | aggiunge una riga |
+| PATCH/DELETE | `/items/:id` | modifica (es. `category_id`) o elimina una riga |
+| GET/POST | `/categories` | elenco (con il numero di righe) o creazione di una categoria |
 | PATCH/DELETE | `/categories/:id` | modifica o eliminazione di una categoria |
 | GET | `/stats?from&to` | totali per categoria |
 
 ## Design
 
-La specifica della nuova UI, i token del design system e il marchio con le icone sono in [`docs/design/`](docs/design/README.md).
+La specifica della UI, i token del design system e il marchio con le icone sono in [`docs/design/`](docs/design/README.md).
+
+Font: [Manrope](https://github.com/googlefonts/manrope) (SIL Open Font License 1.1), incluso nell'app in `assets/fonts/`.
 
 ## Licenza
 
