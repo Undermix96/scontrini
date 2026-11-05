@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Analisi in corso</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 56px 20px 32px; background: {{t.bg}}; color: {{t.tx}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; gap: 20px; overflow: hidden">
+  <header style="display: flex; align-items: center; gap: 12px">
+    <a href="Home.dc.html" aria-label="Indietro" style="width: 44px; height: 44px; border-radius: 50%; background: {{t.sf}}; color: {{t.tx}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+    <h1 style="margin: 0; font-size: 18px; font-weight: 800">Lettura dello scontrino</h1>
+  </header>
+
+  <div style="position: relative; height: 340px; border-radius: 28px; background: {{t.sf}}; display: flex; align-items: center; justify-content: center; overflow: hidden">
+    <div style="position: relative; width: 190px; height: 290px; transform: rotate(-4deg)">
+      <div style="height: 280px; border-radius: 10px 10px 0 0; background: {{t.paper}}; padding: 22px 18px; box-sizing: border-box; display: flex; flex-direction: column; gap: 9px">
+        <span style="align-self: center; width: 90px; height: 9px; border-radius: 5px; background: {{t.ink}}"></span>
+        <span style="align-self: center; width: 120px; height: 5px; border-radius: 3px; background: {{t.inkSoft}}"></span>
+        <span style="height: 10px"></span>
+        <div style="display: flex; justify-content: space-between"><span style="width: 92px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span><span style="width: 28px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span></div>
+        <div style="display: flex; justify-content: space-between"><span style="width: 70px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span><span style="width: 24px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span></div>
+        <div style="display: flex; justify-content: space-between"><span style="width: 104px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span><span style="width: 28px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span></div>
+        <div style="display: flex; justify-content: space-between"><span style="width: 60px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span><span style="width: 22px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span></div>
+        <div style="display: flex; justify-content: space-between"><span style="width: 84px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span><span style="width: 28px; height: 6px; border-radius: 3px; background: {{t.inkSoft}}"></span></div>
+        <span style="height: 8px"></span>
+        <div style="display: flex; justify-content: space-between"><span style="width: 50px; height: 9px; border-radius: 5px; background: {{t.ink}}"></span><span style="width: 44px; height: 9px; border-radius: 5px; background: {{t.ink}}"></span></div>
+      </div>
+      <svg width="190" height="10" viewBox="0 0 190 10" aria-hidden="true" style="display: block"><path d="{{zig}}" fill="{{t.paper}}"/></svg>
+      <div style="position: absolute; left: -18px; right: -18px; top: 132px; height: 3px; border-radius: 2px; background: {{t.ac}}"></div>
+      <div style="position: absolute; left: -18px; right: -18px; top: 64px; height: 68px; background: {{t.scanGlow}}"></div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 4px">
+    <h2 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.4px">Sto leggendo le righe…</h2>
+    <p style="margin: 0; font-size: 14px; color: {{t.mu}}">Di solito bastano una decina di secondi.</p>
+  </div>
+
+  <ol style="margin: 0; padding: 4px 16px; list-style: none; border-radius: 20px; background: {{t.sf}}; display: flex; flex-direction: column">
+    <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+      <li style="display: flex; align-items: center; gap: 12px; min-height: 48px">
+        <sc-if value="{{s.done}}" hint-placeholder-val="{{ true }}">
+          <span style="width: 26px; height: 26px; border-radius: 50%; background: {{t.pos}}; color: {{t.bg}}; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        </sc-if>
+        <sc-if value="{{s.active}}" hint-placeholder-val="{{ false }}">
+          <span style="width: 22px; height: 22px; border-radius: 50%; border: 3px solid {{t.sf2}}; border-top-color: {{t.ac}}"></span>
+        </sc-if>
+        <sc-if value="{{s.todo}}" hint-placeholder-val="{{ false }}">
+          <span style="width: 22px; height: 22px; border-radius: 50%; border: 2px dashed {{t.bd}}"></span>
+        </sc-if>
+        <span style="flex: 1; font-size: 15px; font-weight: {{s.w}}; color: {{s.c}}">{{s.label}}</span>
+        <span style="font-size: 13px; font-weight: 600; color: {{t.mu}}">{{s.meta}}</span>
+      </li>
+    </sc-for>
+  </ol>
+
+  <div style="flex: 1"></div>
+  <p style="margin: 0; display: flex; align-items: center; gap: 8px; justify-content: center; font-size: 13px; color: {{t.mu}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6l8-3z"/></svg>Finita la lettura, la foto viene eliminata.</p>
+  <button type="button" style="height: 56px; border: 1px solid {{t.bd}}; border-radius: 999px; background: transparent; color: {{t.tx}}; font: 700 16px Manrope, system-ui, sans-serif">Annulla</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const P = {
+      dark: { bg: '#0C0C10', sf: '#17171D', sf2: '#22222A', bd: '#2C2C36', tx: '#F4F3F8', mu: '#A3A1B3', ac: '#A99CFF', pos: '#5FD39B', paper: '#ECEAF4', ink: '#4A4760', inkSoft: '#B9B6C9', scanGlow: 'rgba(169,156,255,0.18)' },
+      light: { bg: '#F4F3F8', sf: '#FFFFFF', sf2: '#ECEAF4', bd: '#D3D0E0', tx: '#14131A', mu: '#5E5B6E', ac: '#5B4BDB', pos: '#1B7F4E', paper: '#F7F6FB', ink: '#4A4760', inkSoft: '#CFCCDD', scanGlow: 'rgba(91,75,219,0.12)' }
+    };
+    const t = P[this.props.theme === 'light' ? 'light' : 'dark'];
+    let zig = 'M0 0H190V0';
+    for (let x = 190; x > 0; x -= 10) zig += 'L' + (x - 5) + ' 9L' + (x - 10) + ' 0';
+    zig += 'Z';
+    const st = (label, meta, k) => ({ label, meta, done: k === 0, active: k === 1, todo: k === 2, w: k === 2 ? 500 : 700, c: k === 2 ? t.mu : t.tx });
+    return {
+      t, zig,
+      steps: [
+        st('Esercente e data', 'Esselunga · 5/11', 0),
+        st('Totale', '€ 64,20', 0),
+        st('Righe e importi', '11 di 18', 1),
+        st('Categorie', '', 2)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

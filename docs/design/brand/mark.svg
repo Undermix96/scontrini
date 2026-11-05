@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="288" height="288">
+  <!-- Marchio con angoli arrotondati, sfondo trasparente: splash screen e uso dentro l'app. -->
+  <rect width="108" height="108" rx="24" fill="#6A5AE0"/>
+  <g transform="rotate(-8 54 54)">
+    <path d="M40 28H68Q72 28 72 32V78L67.5 75L63 78L58.5 75L54 78L49.5 75L45 78L40.5 75L36 78V32Q36 28 40 28Z" fill="#FFFFFF"/>
+    <rect x="42" y="38" width="24" height="4" rx="2" fill="#6A5AE0"/>
+    <rect x="42" y="47" width="15" height="4" rx="2" fill="#6A5AE0"/>
+    <rect x="50" y="61" width="16" height="7" rx="3.5" fill="#14112B"/>
+  </g>
+</svg>

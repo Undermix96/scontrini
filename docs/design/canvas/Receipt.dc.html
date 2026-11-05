@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Dettaglio scontrino</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 56px 20px 0; background: {{t.bg}}; color: {{t.tx}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+  <header style="display: flex; align-items: center; justify-content: space-between">
+    <a href="Home.dc.html" aria-label="Indietro" style="width: 44px; height: 44px; border-radius: 50%; background: {{t.sf}}; color: {{t.tx}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+    <h1 style="margin: 0; font-size: 17px; font-weight: 800">Scontrino</h1>
+    <button type="button" aria-label="Altre azioni" style="width: 44px; height: 44px; border: 0; border-radius: 50%; background: {{t.sf}}; color: {{t.tx}}; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+  </header>
+
+  <section style="padding: 18px; border-radius: 24px; background: {{t.sf}}; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+        <button type="button" style="padding: 0; border: 0; background: transparent; color: {{t.tx}}; font: 800 22px Manrope, system-ui, sans-serif; letter-spacing: -0.4px; display: flex; align-items: center; gap: 8px; text-align: left">Esselunga<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{t.mu}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>
+        <button type="button" style="padding: 0; border: 0; background: transparent; color: {{t.mu}}; font: 600 14px Manrope, system-ui, sans-serif; display: flex; align-items: center; gap: 6px; text-align: left">Gio 5 novembre 2026 · 18:42<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px">
+        <span style="font-size: 12px; font-weight: 700; color: {{t.mu}}">Totale</span>
+        <span style="font-size: 26px; font-weight: 800; letter-spacing: -0.6px; font-variant-numeric: tabular-nums">€ 64,20</span>
+      </div>
+    </div>
+    <div role="status" style="display: flex; gap: 12px; padding: 12px 14px; border-radius: 16px; background: {{t.warnBg}}; color: {{t.warnTx}}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{t.warn}}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 14px; line-height: 1.45; font-weight: 600">Le righe sommano <strong>€ 62,70</strong>, il totale è <strong>€ 64,20</strong>. Manca <strong>€ 1,50</strong>: forse una riga non è stata letta.</span>
+        <div style="display: flex; gap: 8px">
+          <button type="button" style="height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: {{t.warnTx}}; color: {{t.warnBg}}; font: 700 13px Manrope, system-ui, sans-serif">Aggiungi riga</button>
+          <button type="button" style="height: 36px; padding: 0 14px; border: 1px solid {{t.warnBd}}; border-radius: 999px; background: transparent; color: {{t.warnTx}}; font: 700 13px Manrope, system-ui, sans-serif">Va bene così</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 4px 2px 0">
+    <h2 style="margin: 0; font-size: 16px; font-weight: 800">18 righe</h2>
+    <span style="font-size: 13px; font-weight: 600; color: {{t.mu}}">Tocca una riga per correggerla</span>
+  </div>
+
+  <section style="border-radius: 24px; background: {{t.sf}}; padding: 4px 0">
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+      <sc-if value="{{r.open}}" hint-placeholder-val="{{ false }}">
+        <div style="margin: 6px; padding: 14px; border-radius: 18px; background: {{t.sf2}}; border: 1.5px solid {{t.ac}}; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; gap: 10px">
+            <label style="flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: {{t.mu}}">Descrizione<input type="text" value="{{r.name}}" style="height: 44px; padding: 0 12px; border: 1px solid {{t.bd}}; border-radius: 12px; background: {{t.sf}}; color: {{t.tx}}; font: 600 15px Manrope, system-ui, sans-serif; min-width: 0"></label>
+            <label style="width: 92px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: {{t.mu}}">Importo<input type="text" inputmode="decimal" value="{{r.amtIn}}" style="height: 44px; padding: 0 12px; border: 1px solid {{t.bd}}; border-radius: 12px; background: {{t.sf}}; color: {{t.tx}}; font: 700 15px Manrope, system-ui, sans-serif; text-align: right; font-variant-numeric: tabular-nums; min-width: 0"></label>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 12px; font-weight: 700; color: {{t.mu}}">Categoria</span>
+            <div role="radiogroup" aria-label="Categoria della riga" style="display: flex; flex-wrap: wrap; gap: 6px">
+              <sc-for list="{{chips}}" as="c" hint-placeholder-count="5">
+                <button type="button" role="radio" aria-checked="{{c.sel}}" onClick="{{c.pick}}" style="height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}}; font: 700 13px Manrope, system-ui, sans-serif; display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{c.color}}"></span>{{c.n}}</button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{r.closed}}" hint-placeholder-val="{{ true }}">
+        <button type="button" style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 16px; border: 0; background: transparent; color: {{t.tx}}; text-align: left; font-family: Manrope, system-ui, sans-serif">
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+            <span style="font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.name}}</span>
+            <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: {{t.mu}}"><span style="width: 9px; height: 9px; border-radius: 50%; background: {{r.color}}"></span>{{r.cat}}{{r.qty}}</span>
+          </span>
+          <span style="font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums">{{r.amt}}</span>
+        </button>
+      </sc-if>
+    </sc-for>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { cat: 'Casa' }; }
+  renderVals() {
+    const P = {
+      dark: { bg: '#0C0C10', sf: '#17171D', sf2: '#22222A', bd: '#33333E', tx: '#F4F3F8', mu: '#A3A1B3', ac: '#A99CFF', warn: '#F5B14C', warnBg: '#3A2C12', warnTx: '#FFD99A', warnBd: '#7A5A22', selBg: '#F4F3F8', selFg: '#0C0C10' },
+      light: { bg: '#F4F3F8', sf: '#FFFFFF', sf2: '#F4F3F8', bd: '#E0DEEA', tx: '#14131A', mu: '#5E5B6E', ac: '#5B4BDB', warn: '#B86E00', warnBg: '#FFF1DA', warnTx: '#6B4000', warnBd: '#E3C38E', selBg: '#14131A', selFg: '#FFFFFF' }
+    };
+    const t = P[this.props.theme === 'light' ? 'light' : 'dark'];
+    const C = { Alimentari: '#4CC38A', Casa: '#5AA9F0', Bevande: '#F0A35A', Igiene: '#E67AC4', Altro: '#8E8C9C' };
+    const row = (name, cat, amt, qty, open) => ({ name, cat, color: C[cat], amt: '€ ' + amt, amtIn: amt, qty: qty ? ' · ' + qty : '', open: !!open, closed: !open });
+    const sel = this.state.cat;
+    return {
+      t,
+      chips: Object.keys(C).map((n) => {
+        const on = n === sel;
+        return { n, color: C[n], sel: on ? 'true' : 'false', bg: on ? t.selBg : 'transparent', fg: on ? t.selFg : t.tx, bd: on ? t.selBg : t.bd, pick: () => this.setState({ cat: n }) };
+      }),
+      rows: [
+        row('Latte intero 1 l', 'Alimentari', '1,29', '2 × 0,65'),
+        row('Pasta di semola 500 g', 'Alimentari', '0,89'),
+        row('Detersivo piatti', 'Casa', '2,49', '', true),
+        row('Acqua naturale 6 × 1,5 l', 'Bevande', '2,34'),
+        row('Dentifricio', 'Igiene', '1,99'),
+        row('Mele Golden', 'Alimentari', '2,61', '1,24 kg')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

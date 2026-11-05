@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Spese per categoria</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; box-sizing: border-box; padding: 56px 20px 0; background: {{t.bg}}; color: {{t.tx}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+  <header style="display: flex; align-items: center; justify-content: space-between; min-height: 44px">
+    <h1 style="margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px">Spese</h1>
+    <div role="group" aria-label="Mese" style="display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; background: {{t.sf}}">
+      <button type="button" aria-label="Mese precedente" style="width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; color: {{t.tx}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span style="font-size: 14px; font-weight: 800; padding: 0 4px">Novembre</span>
+      <button type="button" aria-label="Mese successivo" style="width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; color: {{t.mu}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+  </header>
+
+  <section style="padding: 22px 20px; border-radius: 28px; background: {{t.sf}}; display: flex; align-items: center; gap: 20px">
+    <div style="position: relative; width: 168px; height: 168px; flex-shrink: 0">
+      <svg width="168" height="168" viewBox="0 0 168 168" role="img" aria-label="Ripartizione delle spese di novembre per categoria">
+        <circle cx="84" cy="84" r="70" fill="none" stroke="{{t.sf2}}" stroke-width="18"/>
+        <sc-for list="{{segs}}" as="s" hint-placeholder-count="6">
+          <circle cx="84" cy="84" r="70" fill="none" stroke="{{s.c}}" stroke-width="18" stroke-dasharray="{{s.dash}}" stroke-dashoffset="{{s.off}}" transform="rotate(-90 84 84)"/>
+        </sc-for>
+      </svg>
+      <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+        <span style="font-size: 12px; font-weight: 700; color: {{t.mu}}">Totale</span>
+        <span style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums">€ 482,30</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 12px; font-weight: 700; color: {{t.mu}}">Rispetto a ottobre</span>
+        <span style="font-size: 18px; font-weight: 800; color: {{t.pos}}; font-variant-numeric: tabular-nums">− € 41,10</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 12px; font-weight: 700; color: {{t.mu}}">Categoria principale</span>
+        <span style="font-size: 18px; font-weight: 800">Alimentari</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="border-radius: 24px; background: {{t.sf}}; padding: 6px 0">
+    <sc-for list="{{segs}}" as="s" hint-placeholder-count="6">
+      <a href="Home.dc.html" style="display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; color: inherit; text-decoration: none">
+        <span style="display: flex; align-items: center; gap: 10px">
+          <span style="width: 12px; height: 12px; border-radius: 50%; background: {{s.c}}; flex-shrink: 0"></span>
+          <span style="flex: 1; font-size: 15px; font-weight: 700">{{s.n}}</span>
+          <span style="font-size: 13px; font-weight: 700; color: {{t.mu}}; font-variant-numeric: tabular-nums">{{s.pct}}</span>
+          <span style="width: 78px; text-align: right; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums">{{s.amt}}</span>
+        </span>
+        <span style="height: 6px; border-radius: 3px; background: {{t.sf2}}; overflow: hidden; margin-left: 22px"><span style="display: block; height: 6px; width: {{s.bar}}; border-radius: 3px; background: {{s.c}}"></span></span>
+      </a>
+    </sc-for>
+  </section>
+
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 130px; background: linear-gradient(to bottom, {{t.fade}}, {{t.bg}} 55%)"></div>
+  <nav aria-label="Principale" style="position: absolute; left: 20px; right: 20px; bottom: 28px; display: flex; align-items: center; gap: 10px">
+    <div style="flex: 1; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 999px; background: {{t.nav}}; border: 1px solid {{t.navBd}}">
+      <a href="Home.dc.html" aria-label="Movimenti" style="flex: 1; height: 48px; border-radius: 999px; color: {{t.mu}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg></a>
+      <a href="Stats.dc.html" aria-current="page" style="flex: 1.6; height: 48px; border-radius: 999px; background: {{t.cta}}; color: {{t.ctaInk}}; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-size: 14px; font-weight: 800"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{t.acNav}}" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>Spese</a>
+      <a href="Categories.dc.html" aria-label="Categorie" style="flex: 1; height: 48px; border-radius: 999px; color: {{t.mu}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg></a>
+      <a href="Setup.dc.html" aria-label="Impostazioni" style="flex: 1; height: 48px; border-radius: 999px; color: {{t.mu}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></a>
+    </div>
+    <a href="Scan.dc.html" aria-label="Fotografa uno scontrino" style="width: 62px; height: 62px; border-radius: 50%; background: {{t.hero}}; color: #14112B; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const P = {
+      dark: { bg: '#0C0C10', fade: 'rgba(12,12,16,0)', sf: '#17171D', sf2: '#22222A', tx: '#F4F3F8', mu: '#A3A1B3', pos: '#5FD39B', hero: '#A598FF', cta: '#F4F3F8', ctaInk: '#0C0C10', acNav: '#5B4BDB', nav: '#22222A', navBd: '#33333E' },
+      light: { bg: '#F4F3F8', fade: 'rgba(244,243,248,0)', sf: '#FFFFFF', sf2: '#ECEAF4', tx: '#14131A', mu: '#5E5B6E', pos: '#1B7F4E', hero: '#B4A9FF', cta: '#14131A', ctaInk: '#FFFFFF', acNav: '#B4A9FF', nav: '#FFFFFF', navBd: '#E0DEEA' }
+    };
+    const data = [
+      ['Alimentari', '#4CC38A', 238.40], ['Casa', '#5AA9F0', 96.50], ['Salute', '#F26D6D', 52.90],
+      ['Bevande', '#F0A35A', 38.20], ['Igiene', '#E67AC4', 31.60], ['Svago', '#A99CFF', 24.70]
+    ];
+    const tot = data.reduce((a, d) => a + d[2], 0);
+    const max = data[0][2];
+    const C = 2 * Math.PI * 70;
+    const gap = 3;
+    let acc = 0;
+    const fmt = (v) => '€ ' + v.toFixed(2).replace('.', ',');
+    const segs = data.map(([n, c, v]) => {
+      const len = (v / tot) * C;
+      const s = { n, c, amt: fmt(v), pct: Math.round((v / tot) * 100) + '%', bar: Math.round((v / max) * 100) + '%', dash: Math.max(len - gap, 1).toFixed(2) + ' ' + C.toFixed(2), off: (-acc).toFixed(2) };
+      acc += len;
+      return s;
+    });
+    return { t: P[this.props.theme === 'light' ? 'light' : 'dark'], segs };
+  }
+}
+</script>
+</body>
+</html>

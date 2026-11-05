@@ -107,6 +107,10 @@ Tutte le richieste richiedono l'header `x-app-token`.
 | PATCH/DELETE | `/categories/:id` | modifica o eliminazione di una categoria |
 | GET | `/stats?from&to` | totali per categoria |
 
+## Design
+
+La specifica della nuova UI, i token del design system e il marchio con le icone sono in [`docs/design/`](docs/design/README.md).
+
 ## Licenza
 
 [GPL-3.0-or-later](LICENSE)

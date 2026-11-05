@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Categorie</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 844px; box-sizing: border-box; padding: 56px 20px 0; background: {{t.bg}}; color: {{t.tx}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+  <header style="display: flex; align-items: center; justify-content: space-between; min-height: 44px">
+    <h1 style="margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px">Categorie</h1>
+    <button type="button" style="height: 44px; padding: 0 16px 0 12px; border: 0; border-radius: 999px; background: {{t.cta}}; color: {{t.ctaInk}}; font: 700 14px Manrope, system-ui, sans-serif; display: flex; align-items: center; gap: 6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nuova</button>
+  </header>
+  <p style="margin: 0; font-size: 14px; line-height: 1.45; color: {{t.mu}}">L'AI assegna ogni riga a una di queste categorie. Puoi cambiarle quando vuoi.</p>
+
+  <ul style="margin: 0; padding: 4px 0; list-style: none; border-radius: 24px; background: {{t.sf}}">
+    <sc-for list="{{cats}}" as="c" hint-placeholder-count="8">
+      <li>
+        <button type="button" style="width: 100%; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border: 0; background: transparent; color: {{t.tx}}; text-align: left; font-family: Manrope, system-ui, sans-serif">
+          <span style="width: 32px; height: 32px; border-radius: 10px; background: {{c.soft}}; display: flex; align-items: center; justify-content: center"><span style="width: 12px; height: 12px; border-radius: 50%; background: {{c.c}}"></span></span>
+          <span style="flex: 1; font-size: 15px; font-weight: 700">{{c.n}}</span>
+          <span style="font-size: 13px; font-weight: 600; color: {{t.mu}}">{{c.k}}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{t.mu}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </li>
+    </sc-for>
+  </ul>
+
+  <div style="position: absolute; inset: 0; background: {{t.scrim}}"></div>
+  <section role="dialog" aria-modal="true" aria-labelledby="sheet-title" style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 20px 32px; border-radius: 32px 32px 0 0; background: {{t.sheet}}; display: flex; flex-direction: column; gap: 18px">
+    <span style="align-self: center; width: 40px; height: 5px; border-radius: 3px; background: {{t.bd}}"></span>
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <h2 id="sheet-title" style="margin: 0; font-size: 20px; font-weight: 800">Modifica categoria</h2>
+      <button type="button" aria-label="Chiudi" style="width: 44px; height: 44px; border: 0; border-radius: 50%; background: {{t.sf2}}; color: {{t.tx}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Nome
+      <span style="display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 16px; border-radius: 16px; background: {{t.sf2}}; border: 1.5px solid {{t.ac}}">
+        <span style="width: 14px; height: 14px; border-radius: 50%; background: {{picked}}; flex-shrink: 0"></span>
+        <input type="text" value="Casa" style="flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: {{t.tx}}; font: 700 16px Manrope, system-ui, sans-serif">
+      </span>
+    </label>
+    <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 10px">
+      <legend style="padding: 0; margin-bottom: 10px; font-size: 13px; font-weight: 700">Colore</legend>
+      <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px">
+        <sc-for list="{{swatches}}" as="s" hint-placeholder-count="12">
+          <button type="button" aria-label="{{s.label}}" aria-pressed="{{s.sel}}" onClick="{{s.pick}}" style="height: 46px; border-radius: 50%; border: 3px solid {{s.ring}}; background: {{s.c}}; box-shadow: inset 0 0 0 3px {{s.inner}}; padding: 0"></button>
+        </sc-for>
+      </div>
+    </fieldset>
+    <p style="margin: 0; font-size: 13px; line-height: 1.45; color: {{t.mu}}">Se la elimini, le sue 64 righe restano <strong style="color: {{t.tx}}">senza categoria</strong>.</p>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+      <button type="button" style="height: 54px; border: 1px solid {{t.bd}}; border-radius: 999px; background: transparent; color: {{t.err}}; font: 700 15px Manrope, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; gap: 8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Elimina</button>
+      <button type="button" style="height: 54px; border: 0; border-radius: 999px; background: {{t.cta}}; color: {{t.ctaInk}}; font: 700 15px Manrope, system-ui, sans-serif">Salva</button>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { color: '#5AA9F0' }; }
+  renderVals() {
+    const P = {
+      dark: { bg: '#0C0C10', sf: '#17171D', sf2: '#22222A', bd: '#3A3A46', tx: '#F4F3F8', mu: '#A3A1B3', ac: '#A99CFF', err: '#FF8A80', cta: '#F4F3F8', ctaInk: '#0C0C10', scrim: 'rgba(0,0,0,0.6)', sheet: '#17171D' },
+      light: { bg: '#F4F3F8', sf: '#FFFFFF', sf2: '#F4F3F8', bd: '#D3D0E0', tx: '#14131A', mu: '#5E5B6E', ac: '#5B4BDB', err: '#C62828', cta: '#14131A', ctaInk: '#FFFFFF', scrim: 'rgba(20,19,26,0.38)', sheet: '#FFFFFF' }
+    };
+    const t = P[this.props.theme === 'light' ? 'light' : 'dark'];
+    const cats = [
+      ['Alimentari', '#4CC38A', 212], ['Casa', '#5AA9F0', 64], ['Bevande', '#F0A35A', 41], ['Igiene', '#E67AC4', 27],
+      ['Salute', '#F26D6D', 12], ['Animali', '#C9A76B', 9], ['Svago', '#A99CFF', 6], ['Altro', '#8E8C9C', 15]
+    ].map(([n, c, k]) => ({ n, c, k: k + ' righe', soft: c + '29' }));
+    const names = { '#4CC38A': 'Verde', '#5AA9F0': 'Azzurro', '#F0A35A': 'Arancio', '#E67AC4': 'Rosa', '#F26D6D': 'Rosso', '#C9A76B': 'Sabbia', '#A99CFF': 'Lavanda', '#8E8C9C': 'Grigio', '#6FD3D3': 'Turchese', '#E8D45A': 'Giallo', '#7C8CF8': 'Blu', '#B07A5A': 'Terra' };
+    const sel = this.state.color;
+    const swatches = Object.keys(names).map((c) => {
+      const on = c === sel;
+      return { c, label: names[c], sel: on ? 'true' : 'false', ring: on ? t.tx : 'transparent', inner: on ? t.sheet : 'transparent', pick: () => this.setState({ color: c }) };
+    });
+    return { t, cats, swatches, picked: sel };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{"v":3,"createdOnFiles":{"v":1,"at":"2026-11-05T12:20:00Z"},"title":"Scontrini — UI e logo","launch":{"view":"canvas"},"pages":[],
+"boards":{
+"Main.dc.html":{"x":0,"y":0,"w":1440,"h":1000,"title":"Logo e icone"},
+"Tokens.dc.html":{"x":1520,"y":0,"w":1220,"h":1000,"title":"Token del design system"},
+"Setup.dc.html":{"x":0,"y":1440,"w":390,"h":844,"title":"Primo avvio · scuro"},
+"Home.dc.html":{"x":470,"y":1440,"w":390,"h":844,"title":"Movimenti · scuro"},
+"Scan.dc.html":{"x":940,"y":1440,"w":390,"h":844,"title":"Analisi in corso · scuro"},
+"Receipt.dc.html":{"x":1410,"y":1440,"w":390,"h":844,"title":"Dettaglio scontrino · scuro"},
+"Stats.dc.html":{"x":1880,"y":1440,"w":390,"h":844,"title":"Spese per categoria · scuro"},
+"Categories.dc.html":{"x":2350,"y":1440,"w":390,"h":844,"title":"Categorie · scuro"},
+"SetupLight.dc.html":{"x":0,"y":2750,"w":390,"h":844,"title":"Primo avvio · chiaro"},
+"HomeLight.dc.html":{"x":470,"y":2750,"w":390,"h":844,"title":"Movimenti · chiaro"},
+"ScanLight.dc.html":{"x":940,"y":2750,"w":390,"h":844,"title":"Analisi in corso · chiaro"},
+"ReceiptLight.dc.html":{"x":1410,"y":2750,"w":390,"h":844,"title":"Dettaglio scontrino · chiaro"},
+"StatsLight.dc.html":{"x":1880,"y":2750,"w":390,"h":844,"title":"Spese per categoria · chiaro"},
+"CategoriesLight.dc.html":{"x":2350,"y":2750,"w":390,"h":844,"title":"Categorie · chiaro"}
+},
+"order":["Main.dc.html","Tokens.dc.html","Setup.dc.html","Home.dc.html","Scan.dc.html","Receipt.dc.html","Stats.dc.html","Categories.dc.html","SetupLight.dc.html","HomeLight.dc.html","ScanLight.dc.html","ReceiptLight.dc.html","StatsLight.dc.html","CategoriesLight.dc.html"],
+"notes":{
+"t0":{"x":0,"y":-260,"text":"Scontrini — marchio e design system","kind":"title1","maxW":2740},
+"t1":{"x":0,"y":1180,"text":"Schermate · tema scuro","kind":"title1","maxW":2740},
+"t2":{"x":0,"y":2490,"text":"Schermate · tema chiaro","kind":"title1","maxW":2740}
+},
+"designSystems":[]}

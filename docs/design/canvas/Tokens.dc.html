@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Scontrini — token</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1220px; height: 1000px; box-sizing: border-box; padding: 56px; background: #0C0C10; color: #F4F3F8; font-family: Manrope, system-ui, sans-serif; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 48px">
+
+  <section style="display: flex; flex-direction: column; gap: 22px">
+    <h2 style="margin: 0; font-size: 22px; font-weight: 800">Colori</h2>
+    <div style="display: grid; grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr); gap: 8px 16px; font-size: 13px; align-items: center">
+      <span style="color: #A3A1B3; font-weight: 600">Token</span>
+      <span style="color: #A3A1B3; font-weight: 600">Scuro</span>
+      <span style="color: #A3A1B3; font-weight: 600">Chiaro</span>
+      <sc-for list="{{colors}}" as="c" hint-placeholder-count="12">
+        <span style="font-weight: 700; font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #C9C7D6">{{c.name}}</span>
+        <div style="display: flex; align-items: center; gap: 10px"><span style="width: 36px; height: 24px; border-radius: 8px; border: 1px solid #33333E; background: {{c.d}}"></span><span style="font-family: ui-monospace, Consolas, monospace; font-size: 12px">{{c.d}}</span></div>
+        <div style="display: flex; align-items: center; gap: 10px"><span style="width: 36px; height: 24px; border-radius: 8px; border: 1px solid #33333E; background: {{c.l}}"></span><span style="font-family: ui-monospace, Consolas, monospace; font-size: 12px">{{c.l}}</span></div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <h3 style="margin: 0; font-size: 15px; font-weight: 700">Categorie predefinite</h3>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+        <sc-for list="{{cats}}" as="k" hint-placeholder-count="10">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: #17171D">
+            <span style="width: 14px; height: 14px; border-radius: 50%; background: {{k.c}}; flex-shrink: 0"></span>
+            <div style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 13px; font-weight: 700">{{k.n}}</span><span style="font-size: 11px; color: #A3A1B3; font-family: ui-monospace, Consolas, monospace">{{k.c}}</span></div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #A3A1B3">Stessi valori nei due temi: il colore compare solo come pallino o barra, mai sotto il testo. Ogni coppia vicina differisce anche in luminosità.</p>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 32px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-size: 22px; font-weight: 800">Tipografia · Manrope</h2>
+      <div style="display: flex; flex-direction: column; gap: 12px; padding: 20px; border-radius: 20px; background: #17171D">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px"><span style="font-size: 40px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums">€ 482,30</span><span style="font-size: 12px; color: #A3A1B3">amount · 40/800 · tnum</span></div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px"><span style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px">Titolo schermata</span><span style="font-size: 12px; color: #A3A1B3">headline · 28/800</span></div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px"><span style="font-size: 18px; font-weight: 700">Titolo sezione</span><span style="font-size: 12px; color: #A3A1B3">title · 18/700</span></div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px"><span style="font-size: 16px; font-weight: 500">Testo di una riga</span><span style="font-size: 12px; color: #A3A1B3">body · 16/500</span></div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px"><span style="font-size: 14px; font-weight: 500; color: #A3A1B3">Testo secondario</span><span style="font-size: 12px; color: #A3A1B3">bodySmall · 14/500</span></div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px"><span style="font-size: 13px; font-weight: 700">Etichetta</span><span style="font-size: 12px; color: #A3A1B3">label · 13/700</span></div>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #A3A1B3">Importi sempre con cifre tabulari, punto per le migliaia e virgola decimale. Formato di <code style="color: #C9C0FF">NumberFormat.currency(locale: 'it_IT')</code>: <strong style="color: #F4F3F8">1.234,50 €</strong>.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-size: 22px; font-weight: 800">Spaziature</h2>
+      <div style="display: flex; align-items: flex-end; gap: 14px">
+        <sc-for list="{{space}}" as="s" hint-placeholder-count="8">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: {{s.px}}; height: {{s.px}}; background: #A99CFF; border-radius: 3px"></span><span style="font-size: 12px; color: #A3A1B3">{{s.v}}</span></div>
+        </sc-for>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #A3A1B3">Base 4. Margine laterale schermata 20, tra card 12, interno card 16–20.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-size: 22px; font-weight: 800">Raggi e superfici</h2>
+      <div style="display: flex; gap: 14px; align-items: flex-end">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 64px; height: 48px; border-radius: 12px; background: #22222A"></span><span style="font-size: 12px; color: #A3A1B3">sm 12</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 64px; height: 48px; border-radius: 20px; background: #22222A"></span><span style="font-size: 12px; color: #A3A1B3">md 20</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 64px; height: 48px; border-radius: 28px; background: #22222A"></span><span style="font-size: 12px; color: #A3A1B3">lg 28</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 96px; height: 48px; border-radius: 999px; background: #F4F3F8"></span><span style="font-size: 12px; color: #A3A1B3">pill</span></div>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #A3A1B3">Niente ombre: la profondità viene dai tre livelli di superficie. La card riepilogo ha il bordo inferiore seghettato, come uno scontrino; è l'unico elemento decorativo.</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1220,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      colors: [
+        { name: 'background', d: '#0C0C10', l: '#F4F3F8' },
+        { name: 'surface', d: '#17171D', l: '#FFFFFF' },
+        { name: 'surfaceHigh', d: '#22222A', l: '#ECEAF4' },
+        { name: 'outline', d: '#2C2C36', l: '#E0DEEA' },
+        { name: 'onSurface', d: '#F4F3F8', l: '#14131A' },
+        { name: 'onSurfaceMuted', d: '#A3A1B3', l: '#5E5B6E' },
+        { name: 'primary', d: '#A99CFF', l: '#5B4BDB' },
+        { name: 'summaryCard', d: '#A598FF', l: '#B4A9FF' },
+        { name: 'onSummaryCard', d: '#14112B', l: '#14112B' },
+        { name: 'cta / onCta', d: '#F4F3F8', l: '#14131A' },
+        { name: 'warning', d: '#F5B14C', l: '#B86E00' },
+        { name: 'warningContainer', d: '#3A2C12', l: '#FFF1DA' },
+        { name: 'onWarningContainer', d: '#FFD99A', l: '#6B4000' },
+        { name: 'error', d: '#FF8A80', l: '#C62828' },
+        { name: 'success', d: '#5FD39B', l: '#1B7F4E' }
+      ],
+      cats: [
+        { n: 'Alimentari', c: '#4CC38A' }, { n: 'Bevande', c: '#F0A35A' },
+        { n: 'Casa', c: '#5AA9F0' }, { n: 'Igiene', c: '#E67AC4' },
+        { n: 'Salute', c: '#F26D6D' }, { n: 'Trasporti', c: '#6FD3D3' },
+        { n: 'Ristorazione', c: '#E8D45A' }, { n: 'Abbigliamento', c: '#7C8CF8' },
+        { n: 'Svago', c: '#A99CFF' }, { n: 'Altro', c: '#8E8C9C' }
+      ],
+      space: [4, 8, 12, 16, 20, 24, 32, 48].map((v) => ({ v: String(v), px: v + 'px' }))
+    };
+  }
+}
+</script>
+</body>
+</html>

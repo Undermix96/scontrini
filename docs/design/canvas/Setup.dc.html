@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Primo avvio</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+input::placeholder{color:inherit;opacity:.7}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 72px 20px 32px; background: {{t.bg}}; color: {{t.tx}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px; overflow: hidden">
+  <div style="display: flex; flex-direction: column; gap: 20px">
+    <svg viewBox="0 0 108 108" width="64" height="64" aria-hidden="true" style="border-radius: 15px"><rect width="108" height="108" fill="#6A5AE0"/><g transform="rotate(-8 54 54)"><path d="M40 28H68Q72 28 72 32V78L67.5 75L63 78L58.5 75L54 78L49.5 75L45 78L40.5 75L36 78V32Q36 28 40 28Z" fill="#FFFFFF"/><rect x="42" y="38" width="24" height="4" rx="2" fill="#6A5AE0"/><rect x="42" y="47" width="15" height="4" rx="2" fill="#6A5AE0"/><rect x="50" y="61" width="16" height="7" rx="3.5" fill="#14112B"/></g></svg>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.6px; line-height: 1.15">Collega il tuo server</h1>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: {{t.mu}}">Scontrini salva i dati sul server che scegli tu. Ti servono l'indirizzo e il token di accesso.</p>
+    </div>
+  </div>
+
+  <form style="display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <label for="srv" style="font-size: 13px; font-weight: 700">Indirizzo del server</label>
+      <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 16px; border-radius: 16px; background: {{t.sf}}; border: 1.5px solid {{t.ac}}; color: {{t.mu}}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+        <input id="srv" type="url" value="https://scontrini.casa.lan" style="flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: 600 16px Manrope, system-ui, sans-serif; color: {{t.tx}}">
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <label for="tok" style="font-size: 13px; font-weight: 700">Token di accesso</label>
+      <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 6px 0 16px; border-radius: 16px; background: {{t.sf}}; border: 1px solid {{t.bd}}; color: {{t.mu}}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14 9l2 2"/></svg>
+        <input id="tok" type="password" value="sk-scontrini-0000000000" style="flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: 600 16px Manrope, system-ui, sans-serif; letter-spacing: 2px; color: {{t.tx}}">
+        <button type="button" aria-label="Mostra token" style="width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: {{t.mu}}; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 1.45; color: {{t.mu}}">Lo trovi nel file di configurazione del server. Resta solo su questo telefono, nell'archivio sicuro del sistema.</p>
+    </div>
+  </form>
+
+  <div style="display: flex; gap: 14px; padding: 16px; border-radius: 20px; background: {{t.sf}}">
+    <span style="width: 40px; height: 40px; border-radius: 12px; background: {{t.sf2}}; color: {{t.pos}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></span>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <strong style="font-size: 14px; font-weight: 700">Nessun account, nessun tracker</strong>
+      <span style="font-size: 13px; line-height: 1.45; color: {{t.mu}}">La foto serve solo per la lettura e poi viene eliminata. Restano i dati dello scontrino.</span>
+    </div>
+  </div>
+
+  <div style="flex: 1"></div>
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <button type="button" style="height: 56px; border: 0; border-radius: 999px; background: {{t.cta}}; color: {{t.ctaInk}}; font: 700 16px Manrope, system-ui, sans-serif">Prova e collega</button>
+    <p style="margin: 0; text-align: center; font-size: 13px; color: {{t.mu}}">Software libero · <a href="#" style="color: {{t.ac}}; font-weight: 700">codice sorgente</a></p>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const P = {
+      dark: { bg: '#0C0C10', sf: '#17171D', sf2: '#22222A', bd: '#2C2C36', tx: '#F4F3F8', mu: '#A3A1B3', ac: '#A99CFF', pos: '#5FD39B', cta: '#F4F3F8', ctaInk: '#0C0C10' },
+      light: { bg: '#F4F3F8', sf: '#FFFFFF', sf2: '#ECEAF4', bd: '#E0DEEA', tx: '#14131A', mu: '#5E5B6E', ac: '#5B4BDB', pos: '#1B7F4E', cta: '#14131A', ctaInk: '#FFFFFF' }
+    };
+    return { t: P[this.props.theme === 'light' ? 'light' : 'dark'] };
+  }
+}
+</script>
+</body>
+</html>
