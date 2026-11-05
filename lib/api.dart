@@ -22,18 +22,26 @@ class Api {
 
   Api(this.config);
 
-  Uri _uri(String path, [Map<String, String>? query]) =>
-      Uri.parse('${config.url}/functions/v1/api$path').replace(queryParameters: query);
-
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'x-app-token': config.token,
-      };
+  static Uri _uri(String base, String path, [Map<String, String>? query]) =>
+      Uri.parse('$base/functions/v1/api$path').replace(queryParameters: query);
 
   Future<dynamic> _send(String method, String path,
-      {Object? body, Map<String, String>? query, Duration timeout = const Duration(seconds: 30)}) async {
-    if (!config.isConfigured) throw ApiException(0, 'App non configurata: vai nelle Impostazioni');
-    final req = http.Request(method, _uri(path, query))..headers.addAll(_headers);
+      {Object? body,
+      Map<String, String>? query,
+      Duration timeout = const Duration(seconds: 30),
+      String? url,
+      String? token}) async {
+    url ??= config.url;
+    token ??= config.token;
+    if (url.isEmpty || token.isEmpty) throw ApiException(0, 'App non configurata: vai nelle Impostazioni');
+    final Uri uri;
+    try {
+      uri = _uri(url, path, query);
+    } catch (_) {
+      throw ApiException(0, 'Indirizzo non valido');
+    }
+    final req = http.Request(method, uri)
+      ..headers.addAll({'Content-Type': 'application/json', 'x-app-token': token});
     if (body != null) req.body = jsonEncode(body);
     final http.Response res;
     try {
@@ -56,6 +64,11 @@ class Api {
   }
 
   Future<void> health() async => _send('GET', '/health');
+
+  /// Verifica indirizzo e token senza salvarli. Lancia [ApiException] con
+  /// status 0 se il server non è raggiungibile e 401 se il token è rifiutato.
+  Future<void> probe(String url, String token) async =>
+      _send('GET', '/health', url: AppConfig.normalizeUrl(url), token: token.trim(), timeout: const Duration(seconds: 15));
 
   // Categorie
   Future<List<Category>> categories() async {
@@ -80,10 +93,12 @@ class Api {
     return Receipt.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<List<Receipt>> receipts({DateTime? from, DateTime? to}) async {
+  Future<List<Receipt>> receipts({DateTime? from, DateTime? to, String? q, int? categoryId}) async {
     final data = await _send('GET', '/receipts', query: {
       if (from != null) 'from': from.toUtc().toIso8601String(),
       if (to != null) 'to': to.toUtc().toIso8601String(),
+      if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+      if (categoryId != null) 'category_id': '$categoryId',
       'limit': '500',
     }) as List;
     return data.map((e) => Receipt.fromJson(e as Map<String, dynamic>)).toList();
@@ -108,7 +123,15 @@ class Api {
 
   Future<void> deleteReceipt(String id) => _send('DELETE', '/receipts/$id');
 
+  /// Ignora gli avvisi indicati per questo scontrino (sostituisce l'elenco).
+  Future<Receipt> setDismissedWarnings(String id, List<String> codes) => updateReceipt(id, {'dismissed_warnings': codes});
+
   Future<void> updateItem(String id, Map<String, dynamic> fields) => _send('PATCH', '/items/$id', body: fields);
+
+  Future<ReceiptItem> addItem(String receiptId, Map<String, dynamic> fields) async => ReceiptItem.fromJson(
+      await _send('POST', '/receipts/$receiptId/items', body: fields) as Map<String, dynamic>);
+
+  Future<void> deleteItem(String id) => _send('DELETE', '/items/$id');
 
   Future<List<CategoryTotal>> stats({DateTime? from, DateTime? to}) async {
     final data = await _send('GET', '/stats', query: {

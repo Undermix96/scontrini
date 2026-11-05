@@ -26,8 +26,10 @@ class AppConfig {
     token = (await _storage.read(key: _kToken)) ?? '';
   }
 
+  static String normalizeUrl(String url) => url.trim().replaceAll(RegExp(r'/+$'), '');
+
   Future<void> save({required String url, required String token}) async {
-    this.url = url.trim().replaceAll(RegExp(r'/+$'), '');
+    this.url = normalizeUrl(url);
     this.token = token.trim();
     await _storage.write(key: _kUrl, value: this.url);
     await _storage.write(key: _kToken, value: this.token);

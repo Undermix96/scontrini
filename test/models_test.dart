@@ -52,5 +52,43 @@ void main() {
   test('Colore categoria da esadecimale', () {
     final c = Category.fromJson({'id': 1, 'name': 'Alimentari', 'color': '#4CAF50', 'sort_order': 10});
     expect(c.colorValue.toARGB32(), 0xFF4CAF50);
+    expect(c.itemCount, isNull);
+  });
+
+  test('Elenco con avvisi, somma e categoria prevalente', () {
+    final r = Receipt.fromJson({
+      'id': 'c',
+      'total': 64.2,
+      'created_at': '2026-11-05T10:00:00Z',
+      'items': [
+        {'count': 18}
+      ],
+      'items_sum': 62.7,
+      'dominant_category_id': 1,
+      'warnings': ['date', 'total_mismatch', 'sconosciuto'],
+      'dismissed_warnings': ['duplicate'],
+    });
+    expect(r.itemCount, 18);
+    expect(r.itemsSum, 62.7);
+    expect(r.dominantCategoryId, 1);
+    expect(r.warnings, [ReceiptWarning.totalMismatch, ReceiptWarning.date]);
+    expect(r.dismissedWarnings, ['duplicate']);
+    expect(r.createdAt, isNotNull);
+  });
+
+  test('Dettaglio con doppione', () {
+    final r = Receipt.fromJson({
+      'id': 'd',
+      'total': 1,
+      'duplicate_of': 'e',
+      'duplicate': {'id': 'e', 'merchant': 'Coop', 'purchased_at': '2026-11-01T10:00:00Z'},
+    });
+    expect(r.duplicate?.id, 'e');
+    expect(r.duplicate?.merchant, 'Coop');
+  });
+
+  test('Categoria con numero di righe', () {
+    final c = Category.fromJson({'id': 2, 'name': 'Casa', 'color': '#5AA9F0', 'sort_order': 30, 'item_count': 64});
+    expect(c.itemCount, 64);
   });
 }

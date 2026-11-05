@@ -8,16 +8,20 @@
 // SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY sono forniti automaticamente.
 //
 // Rotte (prefisso /functions/v1/api):
-//   GET    /categories
+//   GET    /categories            con item_count (righe per categoria)
 //   POST   /categories            {name, color?}
 //   PATCH  /categories/:id        {name?, color?, sort_order?}
 //   DELETE /categories/:id
 //   POST   /scan                  {image_base64, mime_type?}
-//   GET    /receipts?from=&to=&limit=&offset=
-//   GET    /receipts/:id
-//   PATCH  /receipts/:id          {merchant?, purchased_at?, total?, currency?, notes?}
+//   GET    /receipts?from=&to=&limit=&offset=&q=&category_id=
+//                                 con items_sum, dominant_category_id, warnings
+//   GET    /receipts/:id          con righe, warnings e duplicate {id, merchant, purchased_at}
+//   PATCH  /receipts/:id          {merchant?, purchased_at?, total?, currency?, notes?,
+//                                  payment_method?, dismissed_warnings?}
 //   DELETE /receipts/:id
+//   POST   /receipts/:id/items    {description?, total?, quantity?, unit_price?, category_id?}
 //   PATCH  /items/:id             {category_id?, description?, total?, quantity?, unit_price?}
+//   DELETE /items/:id
 //   GET    /stats?from=&to=       totali per categoria
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -76,9 +80,47 @@ async function body(req: Request): Promise<Record<string, unknown>> {
   throw new HttpError(400, "Body JSON non valido");
 }
 
-function check<T>(res: { data: T; error: { message: string } | null }): T {
-  if (res.error) throw new HttpError(500, res.error.message);
+function check<T>(res: { data: T; error: { message: string; code?: string } | null }): T {
+  if (res.error) {
+    if (res.error.code === "23505") throw new HttpError(409, "Esiste già un elemento con questo nome");
+    throw new HttpError(500, res.error.message);
+  }
   return res.data;
+}
+
+// ---------------------------------------------------------------- avvisi
+
+// In ordine di priorità: il primo è quello mostrato come badge nell'elenco.
+const WARNINGS = ["total_mismatch", "duplicate", "date"] as const;
+const DISMISSABLE = new Set<string>(WARNINGS);
+const DAY = 24 * 3600 * 1000;
+
+type WarnInput = {
+  total: number | string;
+  purchased_at: string | null;
+  created_at: string | null;
+  duplicate_of: string | null;
+  dismissed_warnings: string[] | null;
+};
+
+/** Stessa logica di lib/warnings.dart nell'app: tenerle allineate. */
+function computeWarnings(r: WarnInput, items: { total: number | string }[]): string[] {
+  const out: string[] = [];
+  const cents = (v: number | string) => Math.round(Number(v) * 100);
+  const sum = items.reduce((s, it) => s + cents(it.total), 0);
+  if (items.length > 0 && Math.abs(sum - cents(r.total)) > 1) out.push("total_mismatch");
+  if (r.duplicate_of) out.push("duplicate");
+  if (r.purchased_at && r.created_at) {
+    const p = Date.parse(r.purchased_at);
+    const c = Date.parse(r.created_at);
+    if (p < c - 60 * DAY || p > c + DAY) out.push("date");
+  }
+  const dismissed = new Set(r.dismissed_warnings ?? []);
+  return out.filter((w) => !dismissed.has(w));
+}
+
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => "\\" + c);
 }
 
 // ---------------------------------------------------------------- OCR / AI
@@ -212,6 +254,7 @@ async function scan(req: Request) {
       total,
       currency: (parsed.currency || "EUR").toString().toUpperCase().slice(0, 3),
       payment_method: parsed.payment_method ?? null,
+      duplicate_of: possibleDuplicate,
       ai_model: model,
       ai_raw: parsed,
     }).select().single(),
@@ -268,13 +311,64 @@ function parseLocalDate(value: unknown): Date | null {
 async function getReceipt(id: string) {
   const r = await db.from("receipts")
     .select("id,merchant,purchased_at,total,currency,payment_method,notes,ai_model,created_at," +
+      "dismissed_warnings,duplicate_of," +
       "items:receipt_items(id,position,description,quantity,unit_price,total,category_id)")
     .eq("id", id)
     .order("position", { referencedTable: "receipt_items" })
     .maybeSingle();
-  const data = check(r);
+  // deno-lint-ignore no-explicit-any
+  const data = check(r) as any;
   if (!data) throw new HttpError(404, "Scontrino non trovato");
-  return data;
+  let duplicate = null;
+  if (data.duplicate_of) {
+    duplicate = check(
+      await db.from("receipts").select("id,merchant,purchased_at").eq("id", data.duplicate_of).maybeSingle(),
+    );
+  }
+  return { ...data, duplicate, warnings: computeWarnings(data, data.items ?? []) };
+}
+
+/** Id degli scontrini che corrispondono a ricerca e filtro, o null se non ci sono filtri. */
+async function filteredIds(
+  q: string,
+  categoryId: string,
+  from: string | null,
+  to: string | null,
+): Promise<Set<string> | null> {
+  let ids: Set<string> | null = null;
+  const intersect = (found: Iterable<string>) => {
+    const next = new Set(found);
+    ids = ids === null ? next : new Set([...ids].filter((x) => next.has(x)));
+  };
+  // deno-lint-ignore no-explicit-any
+  const withRange = (query: any, col: string) => {
+    if (from) query = query.gte(col, from);
+    if (to) query = query.lt(col, to);
+    return query;
+  };
+  if (q) {
+    const pat = `%${escapeLike(q)}%`;
+    const byMerchant = check(
+      await withRange(db.from("receipts").select("id").ilike("merchant", pat), "purchased_at").limit(2000),
+    ) as { id: string }[];
+    const byItem = check(
+      await withRange(
+        db.from("receipt_items").select("receipt_id,receipts!inner(purchased_at)").ilike("description", pat),
+        "receipts.purchased_at",
+      ).limit(2000),
+    ) as { receipt_id: string }[];
+    intersect([...byMerchant.map((r) => r.id), ...byItem.map((r) => r.receipt_id)]);
+  }
+  if (categoryId) {
+    const byCat = check(
+      await withRange(
+        db.from("receipt_items").select("receipt_id,receipts!inner(purchased_at)").eq("category_id", categoryId),
+        "receipts.purchased_at",
+      ).limit(5000),
+    ) as { receipt_id: string }[];
+    intersect(byCat.map((r) => r.receipt_id));
+  }
+  return ids;
 }
 
 function range(url: URL) {
@@ -292,14 +386,17 @@ async function route(req: Request): Promise<Response> {
   // categorie
   if (seg[0] === "categories") {
     if (seg.length === 1 && m === "GET") {
-      return json(check(await db.from("categories").select("id,name,color,sort_order").order("sort_order")));
+      const rows = check(
+        await db.from("categories").select("id,name,color,sort_order,items:receipt_items(count)").order("sort_order"),
+      ) as { items?: { count: number }[]; [k: string]: unknown }[];
+      return json(rows.map(({ items, ...c }) => ({ ...c, item_count: items?.[0]?.count ?? 0 })));
     }
     if (seg.length === 1 && m === "POST") {
       const b = await body(req);
       const name = String(b.name ?? "").trim();
       if (!name) throw new HttpError(400, "name mancante");
       return json(check(await db.from("categories").insert({
-        name, color: String(b.color ?? "#607D8B"), sort_order: Number(b.sort_order ?? 500),
+        name, color: String(b.color ?? "#8E8C9C"), sort_order: Number(b.sort_order ?? 500),
       }).select().single()), 201);
     }
     if (seg.length === 2 && m === "PATCH") {
@@ -320,20 +417,81 @@ async function route(req: Request): Promise<Response> {
       const { from, to } = range(url);
       const limit = Math.min(Number(url.searchParams.get("limit") ?? 100), 500);
       const offset = Number(url.searchParams.get("offset") ?? 0);
+      const search = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
+      const categoryId = (url.searchParams.get("category_id") ?? "").trim();
+      if (categoryId && !/^\d+$/.test(categoryId)) throw new HttpError(400, "category_id non valido");
+      const ids = await filteredIds(search, categoryId, from, to);
+      if (ids !== null && ids.size === 0) return json([]);
       let q = db.from("receipts")
-        .select("id,merchant,purchased_at,total,currency,payment_method,created_at,items:receipt_items(count)")
+        .select(
+          "id,merchant,purchased_at,total,currency,payment_method,created_at,dismissed_warnings,duplicate_of," +
+            "items:receipt_items(count),stats:receipt_items(total,category_id)",
+        )
         .order("purchased_at", { ascending: false })
         .range(offset, offset + limit - 1);
       if (from) q = q.gte("purchased_at", from);
       if (to) q = q.lt("purchased_at", to);
-      return json(check(await q));
+      if (ids !== null) q = q.in("id", [...ids]);
+      // deno-lint-ignore no-explicit-any
+      const rows = check(await q) as any[];
+      return json(rows.map(({ stats, ...r }) => {
+        const items = (stats ?? []) as { total: number; category_id: number | null }[];
+        const byCat = new Map<number, number>();
+        let sum = 0;
+        for (const it of items) {
+          sum += Number(it.total);
+          if (it.category_id !== null) byCat.set(it.category_id, (byCat.get(it.category_id) ?? 0) + Number(it.total));
+        }
+        let dominant: number | null = null;
+        for (const [id, tot] of byCat) if (dominant === null || tot > byCat.get(dominant)!) dominant = id;
+        return { ...r, items_sum: num(sum), dominant_category_id: dominant, warnings: computeWarnings(r, items) };
+      }));
     }
     if (seg.length === 2 && m === "GET") return json(await getReceipt(seg[1]));
     if (seg.length === 2 && m === "PATCH") {
-      const b = pick(await body(req), ["merchant", "purchased_at", "total", "currency", "notes", "payment_method"]);
+      const b = pick(await body(req), [
+        "merchant",
+        "purchased_at",
+        "total",
+        "currency",
+        "notes",
+        "payment_method",
+        "dismissed_warnings",
+      ]);
       if ("total" in b) b.total = num(b.total) ?? 0;
+      if ("dismissed_warnings" in b) {
+        const v = b.dismissed_warnings;
+        if (!Array.isArray(v) || !v.every((w) => DISMISSABLE.has(String(w)))) {
+          throw new HttpError(400, "dismissed_warnings non valido");
+        }
+        b.dismissed_warnings = [...new Set(v.map(String))];
+      }
       check(await db.from("receipts").update(b).eq("id", seg[1]));
       return json(await getReceipt(seg[1]));
+    }
+    if (seg.length === 3 && seg[2] === "items" && m === "POST") {
+      const b = await body(req);
+      const exists = check(await db.from("receipts").select("id").eq("id", seg[1]).maybeSingle());
+      if (!exists) throw new HttpError(404, "Scontrino non trovato");
+      const last = check(
+        await db.from("receipt_items").select("position").eq("receipt_id", seg[1])
+          .order("position", { ascending: false }).limit(1),
+      ) as { position: number }[];
+      const categoryId = b.category_id === undefined || b.category_id === null ? null : Number(b.category_id);
+      return json(
+        check(
+          await db.from("receipt_items").insert({
+            receipt_id: seg[1],
+            position: (last[0]?.position ?? -1) + 1,
+            description: String(b.description ?? "").slice(0, 300),
+            quantity: num(b.quantity, 3),
+            unit_price: num(b.unit_price),
+            total: num(b.total) ?? 0,
+            category_id: categoryId !== null && Number.isFinite(categoryId) ? categoryId : null,
+          }).select("id,position,description,quantity,unit_price,total,category_id").single(),
+        ),
+        201,
+      );
     }
     if (seg.length === 2 && m === "DELETE") {
       check(await db.from("receipts").delete().eq("id", seg[1]));
@@ -348,6 +506,10 @@ async function route(req: Request): Promise<Response> {
     if ("unit_price" in b) b.unit_price = num(b.unit_price);
     if ("quantity" in b) b.quantity = num(b.quantity, 3);
     return json(check(await db.from("receipt_items").update(b).eq("id", seg[1]).select().single()));
+  }
+  if (seg[0] === "items" && seg.length === 2 && m === "DELETE") {
+    check(await db.from("receipt_items").delete().eq("id", seg[1]));
+    return json({ ok: true });
   }
 
   // statistiche per categoria
