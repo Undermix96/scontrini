@@ -8,8 +8,10 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:scontrini/ai/ai_client.dart';
 import 'package:scontrini/app_state.dart';
 import 'package:scontrini/data/backup.dart';
+import 'package:scontrini/format.dart';
 import 'package:scontrini/main.dart';
 import 'package:scontrini/screens/export_screen.dart';
+import 'package:scontrini/screens/manual_entry_screen.dart';
 import 'package:scontrini/screens/pin_screen.dart';
 import 'package:scontrini/screens/receipt_screen.dart';
 import 'package:scontrini/screens/scan_screen.dart';
@@ -223,6 +225,83 @@ void main() {
     expect(find.text('Ripristina da un backup'), findsNothing);
     expect(find.text('Inserisci la chiave API'), findsOneWidget);
     expect(state.config.isConfigured, isFalse);
+  });
+
+  testWidgets('Inserimento manuale: due righe, totale e salvataggio', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app, seeded: false);
+    await _pumpApp(tester, state);
+    await tester.tap(find.bySemanticsLabel('Fotografa uno scontrino'));
+    await _settle(tester);
+    expect(find.text('Inserisci a mano'), findsOneWidget);
+    await tester.tap(find.text('Inserisci a mano'));
+    await _settle(tester);
+    expect(find.text('Nuova spesa'), findsOneWidget);
+    final save = find.widgetWithText(FilledButton, 'Salva');
+    expect(tester.widget<FilledButton>(save).onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField).first, 'Mercato');
+    // Prima riga: descrizione, quantità e prezzo unitario calcolano l'importo.
+    final fields = find.descendant(of: find.byKey(const ValueKey('edit-draft-0')), matching: find.byType(TextField));
+    await tester.enterText(fields.at(0), 'Mele');
+    await tester.enterText(fields.at(2), '3');
+    await tester.enterText(fields.at(3), '1,10');
+    await tester.pump();
+    expect(find.text('3,30'), findsOneWidget);
+    await tester.ensureVisible(find.text('Alimentari'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alimentari'));
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('Aggiungi riga'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aggiungi riga'));
+    await tester.pumpAndSettle();
+    final second = find.descendant(of: find.byKey(const ValueKey('edit-draft-1')), matching: find.byType(TextField));
+    await tester.enterText(second.at(0), 'Pane');
+    await tester.enterText(second.at(1), '2,20');
+    await tester.pump();
+    expect(find.text(money(5.5)), findsOneWidget);
+    expect(tester.widget<FilledButton>(save).onPressed, isNotNull);
+
+    await tester.tap(save);
+    await _settle(tester);
+    expect(find.byType(ReceiptScreen), findsOneWidget);
+    expect(find.text('Inserito a mano.'), findsOneWidget);
+    final saved = (await tester.runAsync(() => app.repo.allReceipts()))!.single;
+    expect(saved.merchant, 'Mercato');
+    expect(saved.total, 5.5);
+    expect(saved.items.map((i) => (i.description, i.total, i.categoryId)), [('Mele', 3.3, 1), ('Pane', 2.2, 1)]);
+    expect(saved.items.first.quantity, 3);
+    expect(saved.items.first.unitPrice, 1.1);
+  });
+
+  testWidgets('Inserimento manuale: uscendo con dati chiede conferma', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app, seeded: false);
+    await _pumpApp(tester, state);
+    _push(tester, const ManualEntryScreen());
+    await _settle(tester);
+    await tester.tap(find.byTooltip('Chiudi'));
+    await _settle(tester);
+    expect(find.text('Nuova spesa'), findsNothing, reason: 'vuota: si chiude subito');
+
+    _push(tester, const ManualEntryScreen());
+    await _settle(tester);
+    await tester.enterText(find.byType(TextField).first, 'Bar');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Chiudi'));
+    await _settle(tester);
+    expect(find.text('Scartare la spesa?'), findsOneWidget);
+    await tester.tap(find.text('Continua a scrivere'));
+    await _settle(tester);
+    expect(find.text('Nuova spesa'), findsOneWidget);
+    await tester.tap(find.byTooltip('Chiudi'));
+    await _settle(tester);
+    await tester.tap(find.text('Scarta'));
+    await _settle(tester);
+    expect(find.text('Nuova spesa'), findsNothing);
+    expect((await tester.runAsync(() => app.repo.allReceipts()))!, isEmpty);
   });
 
   testWidgets('Movimenti: card, gruppi per giorno e badge', (tester) async {

@@ -9,11 +9,13 @@ import '../models.dart';
 import '../scan_controller.dart';
 import '../theme/tokens.dart';
 import '../widgets/common.dart';
+import 'manual_entry_screen.dart';
 import 'receipt_screen.dart';
 
 /// Avvia il flusso di lettura: se c'è già un'analisi in corso la riapre,
 /// altrimenti chiede la sorgente (se non indicata), sceglie la foto e apre
-/// la schermata "Analisi in corso".
+/// la schermata "Analisi in corso". Dal pannello si può anche inserire la
+/// spesa a mano.
 Future<void> startScanFlow(BuildContext context, [ImageSource? source]) async {
   final state = AppScope.read(context);
   final navigator = Navigator.of(context);
@@ -21,21 +23,30 @@ Future<void> startScanFlow(BuildContext context, [ImageSource? source]) async {
     await navigator.push(MaterialPageRoute(builder: (_) => const ScanScreen()));
     return;
   }
-  source ??= await chooseImageSource(context);
-  if (source == null) return;
+  if (source == null) {
+    final choice = await chooseNewReceipt(context);
+    if (choice == null) return;
+    if (choice == NewReceipt.manual) {
+      await navigator.push(MaterialPageRoute(builder: (_) => const ManualEntryScreen()));
+      return;
+    }
+    source = choice == NewReceipt.camera ? ImageSource.camera : ImageSource.gallery;
+  }
   final picked = await state.lock.suspendWhile(() => ScanController.pick(source!));
   if (picked == null) return;
   state.scan.start(picked.$1, picked.$2);
   await navigator.push(MaterialPageRoute(builder: (_) => const ScanScreen()));
 }
 
-/// Pannello "Scatta foto" / "Scegli dalla galleria".
-Future<ImageSource?> chooseImageSource(BuildContext context) => showModalBottomSheet<ImageSource>(
+enum NewReceipt { camera, gallery, manual }
+
+/// Pannello "Scatta foto" / "Scegli dalla galleria" / "Inserisci a mano".
+Future<NewReceipt?> chooseNewReceipt(BuildContext context) => showModalBottomSheet<NewReceipt>(
       context: context,
       showDragHandle: true,
       builder: (ctx) {
         final c = ctx.colors;
-        Widget tile(IconData icon, String label, ImageSource s) => ListTile(
+        Widget tile(IconData icon, String label, NewReceipt s) => ListTile(
               minTileHeight: 56,
               contentPadding: const EdgeInsets.symmetric(horizontal: Gap.gutter),
               leading: Container(
@@ -51,8 +62,9 @@ Future<ImageSource?> chooseImageSource(BuildContext context) => showModalBottomS
           child: Padding(
             padding: const EdgeInsets.only(bottom: Gap.md),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              tile(Icons.photo_camera_outlined, 'Scatta foto', ImageSource.camera),
-              tile(Icons.image_outlined, 'Scegli dalla galleria', ImageSource.gallery),
+              tile(Icons.photo_camera_outlined, 'Scatta foto', NewReceipt.camera),
+              tile(Icons.image_outlined, 'Scegli dalla galleria', NewReceipt.gallery),
+              tile(Icons.edit_note, 'Inserisci a mano', NewReceipt.manual),
             ]),
           ),
         );

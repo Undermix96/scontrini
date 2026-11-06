@@ -17,6 +17,7 @@ import 'package:scontrini/ai/ai_client.dart';
 import 'package:scontrini/app_state.dart';
 import 'package:scontrini/main.dart';
 import 'package:scontrini/screens/export_screen.dart';
+import 'package:scontrini/screens/manual_entry_screen.dart';
 import 'package:scontrini/screens/pin_screen.dart';
 import 'package:scontrini/screens/receipt_screen.dart';
 import 'package:scontrini/screens/scan_screen.dart';
@@ -160,6 +161,27 @@ void main() {
       }
       await _settle(tester);
       await _shot('pin_create_$t');
+    });
+
+    testWidgets('manual $t', (tester) async {
+      await _setup(tester, FakeApp(), b);
+      _push(tester, const ManualEntryScreen());
+      await _settle(tester);
+      final first = find.descendant(of: find.byKey(const ValueKey('edit-draft-0')), matching: find.byType(TextField));
+      await tester.enterText(first.at(0), 'Mele Golden');
+      await tester.enterText(first.at(2), '2');
+      await tester.enterText(first.at(3), '1,35');
+      await tester.tap(find.text('Alimentari'));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _settle(tester);
+      await _shot('manual_$t');
+    });
+
+    testWidgets('new sheet $t', (tester) async {
+      await _setup(tester, FakeApp(), b);
+      await tester.tap(find.bySemanticsLabel('Fotografa uno scontrino'));
+      await _settle(tester);
+      await _shot('new_sheet_$t');
     });
 
     testWidgets('home $t', (tester) async {

@@ -361,6 +361,68 @@ class Repository {
     return [for (final r in rows) CategoryTotal(r.read<int?>('c'), _eur(r.read<int>('t')))];
   }
 
+  // ------------------------------------------------------------- nuovi scontrini
+
+  /// Possibile doppione: stesso totale e stessa data/ora (al minuto).
+  Future<String?> _duplicateOf(int totalCents, int purchasedMs) async {
+    final dup = await db.customSelect(
+      'SELECT id FROM receipts WHERE total_cents = ? AND purchased_at BETWEEN ? AND ? '
+      'ORDER BY created_at LIMIT 1',
+      variables: [Variable.withInt(totalCents), Variable.withInt(purchasedMs - 60000), Variable.withInt(purchasedMs + 60000)],
+    ).getSingleOrNull();
+    return dup?.read<String>('id');
+  }
+
+  /// Scontrino inserito a mano (senza AI: `aiModel` resta vuoto). Le righe
+  /// hanno i campi di [addItem]; il totale è la loro somma.
+  Future<Receipt> createReceipt({
+    String? merchant,
+    required DateTime purchasedAt,
+    String? paymentMethod,
+    String? notes,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    if (items.isEmpty) throw DataException('Serve almeno una riga');
+    String? str(String? v) => v == null || v.trim().isEmpty ? null : v.trim();
+    final total = items.fold<int>(0, (s, it) => s + (_cents(it['total']) ?? 0));
+    final purchasedMs = _ms(purchasedAt);
+    return db.transaction(() async {
+      final duplicateOf = await _duplicateOf(total, purchasedMs);
+      final id = newId();
+      final nowMs = _nowMs;
+      await db.into(db.receipts).insert(ReceiptsCompanion.insert(
+            id: id,
+            merchant: Value(str(merchant)),
+            purchasedAt: Value(purchasedMs),
+            totalCents: Value(total),
+            paymentMethod: Value(str(paymentMethod)),
+            notes: Value(str(notes)),
+            duplicateOf: Value(duplicateOf),
+            createdAt: nowMs,
+            updatedAt: nowMs,
+          ));
+      await db.batch((b) {
+        b.insertAll(db.receiptItems, [
+          for (var i = 0; i < items.length; i++)
+            ReceiptItemsCompanion.insert(
+              id: newId(),
+              receiptId: id,
+              position: Value(i),
+              description: _desc(items[i]['description']),
+              quantity: Value(_real(items[i]['quantity'])),
+              unitPriceCents: Value(_cents(items[i]['unit_price'])),
+              totalCents: Value(_cents(items[i]['total']) ?? 0),
+              categoryId: Value((items[i]['category_id'] as num?)?.toInt()),
+              createdAt: nowMs,
+            ),
+        ]);
+      });
+      final r = await receipt(id);
+      r.possibleDuplicateOf = duplicateOf;
+      return r;
+    });
+  }
+
   // ------------------------------------------------------------- lettura AI
 
   /// Salva lo scontrino letto dall'AI ([parsed] è il JSON dello schema in
@@ -381,13 +443,7 @@ class Repository {
     final purchasedMs = _ms(purchased ?? current);
 
     return db.transaction(() async {
-      // Possibile doppione: stesso totale e stessa data/ora (al minuto).
-      final dup = await db.customSelect(
-        'SELECT id FROM receipts WHERE total_cents = ? AND purchased_at BETWEEN ? AND ? '
-        'ORDER BY created_at LIMIT 1',
-        variables: [Variable.withInt(total), Variable.withInt(purchasedMs - 60000), Variable.withInt(purchasedMs + 60000)],
-      ).getSingleOrNull();
-      final duplicateOf = dup?.read<String>('id');
+      final duplicateOf = await _duplicateOf(total, purchasedMs);
 
       final id = newId();
       final nowMs = _nowMs;

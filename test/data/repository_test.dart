@@ -17,6 +17,44 @@ void main() {
   });
   tearDown(() => app.db.close());
 
+  test('inserimento manuale: più righe, totale dalla somma, senza AI', () async {
+    final at = DateTime(2026, 11, 18, 9, 30);
+    final r = await repo.createReceipt(
+      merchant: '  Mercato  ',
+      purchasedAt: at,
+      paymentMethod: ' ',
+      notes: 'bancarella',
+      items: [
+        {'description': 'Mele', 'total': 2.4, 'quantity': 2.0, 'unit_price': 1.2, 'category_id': 1},
+        {'description': 'Sconto', 'total': -0.5, 'category_id': 1},
+        {'description': 'Detersivo', 'total': 3.1, 'category_id': 3},
+      ],
+    );
+    expect(r.merchant, 'Mercato');
+    expect(r.paymentMethod, isNull);
+    expect(r.notes, 'bancarella');
+    expect(r.purchasedAt, at);
+    expect(r.total, 5.0);
+    expect(r.aiModel, isNull);
+    expect(r.items.map((i) => i.description), ['Mele', 'Sconto', 'Detersivo']);
+    expect(r.items.first.quantity, 2.0);
+    expect(r.items.first.unitPrice, 1.2);
+    expect(r.items.last.categoryId, 3);
+    expect(r.possibleDuplicateOf, isNull);
+    expect(() => repo.createReceipt(purchasedAt: at, items: []), throwsA(isA<DataException>()));
+  });
+
+  test('inserimento manuale: doppione con stesso totale e stessa ora', () async {
+    final at = DateTime(2026, 11, 18, 9, 30);
+    final first = await repo.createReceipt(purchasedAt: at, items: [
+      {'description': 'Pizza', 'total': 8.0},
+    ]);
+    final second = await repo.createReceipt(purchasedAt: at.add(const Duration(seconds: 30)), items: [
+      {'description': 'Pizza', 'total': 8.0},
+    ]);
+    expect(second.possibleDuplicateOf, first.id);
+  });
+
   test('categorie del seed con il numero di righe', () async {
     final cats = await repo.categories();
     expect(cats.map((c) => c.name).take(3), ['Alimentari', 'Bevande', 'Casa']);
