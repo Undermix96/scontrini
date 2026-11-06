@@ -1,55 +1,61 @@
 # Scontrini
 
 App **Android e iOS**, open source e senza tracker, per fotografare gli scontrini.
-La foto viene analizzata da un modello vision tramite [OpenRouter](https://openrouter.ai), che estrae
+La foto viene letta da un modello AI vision scelto da te, con **la tua chiave API** (BYOK), che estrae
 totale, esercente, data e **ogni singola riga**, e **assegna una categoria a ogni riga**.
-I dati vengono salvati in un database [Supabase](https://supabase.com).
+Tutti i dati restano **solo sul telefono**.
 
-- Nessun account o login: un solo profilo.
+- Nessun account, nessun server: l'app parla soltanto con il servizio AI che configuri.
 - Nessun SDK di analytics, crash reporting, pubblicità, Firebase o Google Play Services.
-- Le foto non vengono conservate: servono per l'analisi e poi vengono scartate.
-- A OpenRouter viene chiesto `data_collection: deny`, cioè di instradare la richiesta solo verso provider che non conservano i dati e non li usano per il training.
+- Le foto non vengono conservate: vanno al servizio AI per la lettura e poi vengono scartate.
+- Con OpenRouter l'app chiede `data_collection: deny`, cioè di usare solo fornitori che non conservano i dati e non li usano per l'addestramento.
 
 ## Architettura
 
 ```
-App Flutter ──(HTTPS, header x-app-token)──▶ Supabase Edge Function "api" ──▶ OpenRouter (OCR + categorie)
-                                                     │
-                                                     └──▶ Postgres (receipts, receipt_items, categories)
+App Flutter ──(HTTPS, la tua chiave)──▶ OpenRouter o servizio compatibile OpenAI (lettura + categorie)
+     │
+     └──▶ SQLite sul telefono (drift): scontrini, righe, categorie, impostazioni
 ```
 
-- Le tabelle hanno **RLS attiva senza policy** e nessun privilegio per `anon` e `authenticated`: dall'esterno non si possono né leggere né scrivere.
-- La Edge Function usa la service role, che resta sul server, e accetta solo richieste con il token `APP_TOKEN`.
-- La chiave OpenRouter esiste **solo** nei secrets di Supabase, mai nell'app né nel repo.
-- Il token dell'app **non viene compilato nel binario**: lo inserisci una volta al primo avvio e viene salvato cifrato nel Keystore (Android) o nel Keychain (iOS).
+- **Database**: SQLite tramite [drift](https://drift.simonbinder.eu), nella cartella dati privata dell'app (`<Application Support>/db/scontrini.sqlite`). Resta tra un aggiornamento e l'altro; si perde solo disinstallando l'app.
+- **Aggiornamenti dello schema**: migrazioni versionate (`schemaVersion` in `lib/data/db.dart`), con gli schemi salvati in `drift_schemas/` e test di migrazione generati. Prima di ogni migrazione l'app salva una copia del database (`scontrini.pre-upgrade.sqlite`).
+- **Importi** in centesimi interi, **date** in UTC.
+- **Chiave API**: solo nel Keystore (Android) o nel Keychain (iOS). Non è mai nel binario, nel repository o nei backup.
+- **Backup di sistema disattivato**: su Android `allowBackup="false"` e regole di estrazione che escludono backup su cloud e trasferimento a un nuovo telefono; su iOS la cartella del database è esclusa dal backup iCloud. I dati escono dal telefono solo con il backup manuale dell'app.
 
-## Configurazione
+## Primo avvio
 
-### 1. Secrets di Supabase
+Al primo avvio scegli:
 
-Dalla dashboard del progetto vai in **Edge Functions → Secrets** e aggiungi:
+1. **Inizia**: scegli il servizio AI, il modello e incolla la chiave, poi *Verifica e inizia*. La configurazione viene salvata solo se la chiave funziona.
+2. **Ripristina da un backup**: scegli un file di backup; poi inserisci la chiave (che il backup non contiene).
 
-| Nome | Valore |
+Servizi supportati:
+
+| Servizio | Indirizzo | Modello |
+|---|---|---|
+| OpenRouter (consigliato) | fisso, `https://openrouter.ai/api/v1` | default `google/gemini-2.5-flash`, qualsiasi modello vision |
+| Altro servizio compatibile OpenAI | a scelta, solo `https://` (es. `https://api.openai.com/v1`) | obbligatorio, deve leggere le immagini |
+
+La chiave OpenRouter si crea su openrouter.ai, alla voce *Keys*. Servizio, modello e chiave si cambiano in *Impostazioni*.
+
+## Backup ed esportazione
+
+**Backup** (*Impostazioni → Dati → Crea backup*): un file JSON (`scontrini-backup-AAAA-MM-GG.json`) salvato dove scegli tu con il selettore di sistema (Download, una cartella sincronizzata, una chiavetta…). Contiene scontrini, righe, categorie e le impostazioni AI, **mai la chiave**.
+
+**Ripristino**: solo al primo avvio, quando l'app non contiene ancora dati. Per ripristinare su un'app già in uso bisogna disinstallarla e reinstallarla. Il ripristino è tutto o niente: se il file non è valido non viene importato nulla.
+
+**Esportazione** (*Impostazioni → Dati → Esporta*), per un mese, un anno, un intervallo o tutto:
+
+| Formato | Contenuto |
 |---|---|
-| `OPENROUTER_API_KEY` | la tua chiave OpenRouter (`sk-or-...`) |
-| `APP_TOKEN` | una stringa casuale lunga, almeno 24 caratteri (vedi sotto) |
-| `OPENROUTER_MODEL` | *(opzionale)* modello vision, default `google/gemini-2.5-flash` |
+| CSV righe articolo | una riga per articolo: data, ora, esercente, descrizione, categoria, quantità, prezzo, importo |
+| CSV scontrini | una riga per scontrino: totale, somma righe, pagamento, note, avvisi |
+| JSON completo | stessa struttura del backup, senza impostazioni (non si può ripristinare) |
+| PDF riepilogo | totale, spese per categoria e per mese, elenco degli scontrini |
 
-Per generare un token casuale:
-
-```bash
-openssl rand -base64 36
-```
-
-In PowerShell:
-
-```powershell
-[Convert]::ToBase64String((1..36 | % { [byte](Get-Random -Max 256) }))
-```
-
-### 2. App
-
-Al primo avvio l'app chiede **indirizzo del server** e **token di accesso**. L'URL del progetto Supabase è già precompilato (`https://iayyyjzjjjbhczzbphof.supabase.co`): incolla l'`APP_TOKEN` e premi *Prova e collega*. La configurazione viene salvata solo se la verifica riesce; la puoi cambiare in seguito da *Impostazioni*.
+I CSV sono pensati per Excel e LibreOffice in italiano: separatore `;`, virgola decimale, date `gg/mm/aaaa`, UTF-8 con BOM.
 
 ## Build (GitHub Actions)
 
@@ -68,9 +74,9 @@ Il workflow [`Build app`](.github/workflows/build.yml) parte **solo manualmente*
   ```bash
   base64 -w0 release.jks
   ```
-- **iOS**: IPA **non firmato**, da installare con AltStore o Sideloadly. Con un Apple ID gratuito va rifirmato ogni 7 giorni.
 
-Variabile del repo (non segreta): `SUPABASE_URL`, che viene precompilata nell'app.
+  Per aggiornare l'app senza perdere i dati, ogni APK va firmato **con la stessa chiave**: Android rifiuta un aggiornamento firmato diversamente e l'unica via sarebbe disinstallare (backup e ripristino).
+- **iOS**: IPA **non firmato**, da installare con AltStore o Sideloadly. Con un Apple ID gratuito va rifirmato ogni 7 giorni.
 
 ### Versioni
 
@@ -81,7 +87,7 @@ Le versioni seguono la data (CalVer) e sono assegnate dal workflow, senza modifi
 
 In *Impostazioni → Informazioni* compare come `2026.11.5 (build 57)`; nelle build locali come "sviluppo". Gli artifact hanno lo stesso nome (`scontrini-android-2026.11.5-b57`). Su Android il `versionCode` include anche l'offset per architettura che Flutter aggiunge con `--split-per-abi`.
 
-> **Aggiornamento da una build con versione 0.1.0 (Android).** `flutter_secure_storage` è passato dalla 9 alla 11, che non legge più i dati salvati con il vecchio sistema. Al primo avvio l'app chiede di nuovo indirizzo e token: l'indirizzo è già precompilato, basta incollare il token. I dati sul server non cambiano.
+> **Aggiornamento dalla versione con server Supabase.** La vecchia versione salvava i dati su un server. Questa li tiene sul telefono e non li importa: all'avvio si riparte da zero con il primo avvio (servizio AI e chiave).
 
 ## Sviluppo locale
 
@@ -90,13 +96,25 @@ flutter pub get
 ```
 
 ```bash
-flutter run --dart-define=SUPABASE_URL=https://iayyyjzjjjbhczzbphof.supabase.co
+flutter run
 ```
 
-Test:
+Test (usano un database SQLite in memoria e un servizio AI finto):
 
 ```bash
 flutter test
+```
+
+Dopo una modifica alle tabelle in `lib/data/db.dart` rigenera il codice (i file `*.g.dart` sono nel repository, la CI non li genera):
+
+```bash
+dart run build_runner build
+```
+
+Per una nuova versione dello schema: incrementa `latestSchemaVersion`, aggiungi il passo in `migration`, poi salva lo schema e genera i test di migrazione:
+
+```bash
+dart run drift_dev make-migrations
 ```
 
 Schermate in tema chiaro e scuro, da confrontare con le tavole del design (finiscono in `tool/screenshots/out/`):
@@ -115,31 +133,16 @@ dart run flutter_launcher_icons
 dart run flutter_native_splash:create
 ```
 
-Backend:
-- schema: `supabase/migrations/`
-- Edge Function: `supabase/functions/api/`
+## Struttura
 
-Per deployarli con la Supabase CLI:
-
-```bash
-npx supabase functions deploy api --project-ref iayyyjzjjjbhczzbphof --no-verify-jwt
-```
-
-## API della Edge Function
-
-Tutte le richieste richiedono l'header `x-app-token`.
-
-| Metodo | Percorso | Descrizione |
-|---|---|---|
-| GET | `/health` | test della connessione |
-| POST | `/scan` | `{image_base64, mime_type}`: analizza e salva uno scontrino |
-| GET | `/receipts?from&to&q&category_id` | elenco degli scontrini, con ricerca, filtro, avvisi e categoria prevalente |
-| GET/PATCH/DELETE | `/receipts/:id` | dettaglio, modifica (anche `dismissed_warnings`) o eliminazione |
-| POST | `/receipts/:id/items` | aggiunge una riga |
-| PATCH/DELETE | `/items/:id` | modifica (es. `category_id`) o elimina una riga |
-| GET/POST | `/categories` | elenco (con il numero di righe) o creazione di una categoria |
-| PATCH/DELETE | `/categories/:id` | modifica o eliminazione di una categoria |
-| GET | `/stats?from&to` | totali per categoria |
+| Percorso | Contenuto |
+|---|---|
+| `lib/data/db.dart` | tabelle, migrazioni, categorie iniziali |
+| `lib/data/repository.dart` | ricerca, filtri, statistiche, avvisi, salvataggio delle letture |
+| `lib/data/backup.dart` | backup, ripristino, esportazione JSON |
+| `lib/ai/ai_client.dart` | chiamata al servizio AI: prompt, schema JSON, errori |
+| `lib/export/` | CSV e PDF |
+| `lib/config.dart` | impostazioni e chiave API |
 
 ## Design
 

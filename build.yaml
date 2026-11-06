@@ -1,0 +1,10 @@
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          databases:
+            # Per `dart run drift_dev make-migrations`: schema in drift_schemas/.
+            app: lib/data/db.dart
+          schema_dir: drift_schemas/
+          test_dir: test/drift/

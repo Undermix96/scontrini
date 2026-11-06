@@ -1,76 +1,140 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:scontrini/ai/ai_client.dart';
 import 'package:scontrini/app_state.dart';
+import 'package:scontrini/data/backup.dart';
 import 'package:scontrini/main.dart';
+import 'package:scontrini/screens/export_screen.dart';
 import 'package:scontrini/screens/receipt_screen.dart';
 import 'package:scontrini/screens/scan_screen.dart';
 
-import 'support/fake_server.dart';
+import 'support/fake_app.dart';
 
-/// PNG 1×1 trasparente.
-final _png = Uint8List.fromList(const [
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, //
-  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-  0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-  0x42, 0x60, 0x82,
-]);
+/// Foto di prova valida (PNG 8×8), disegnata al volo.
+Future<Uint8List> _photo(WidgetTester tester) async => (await tester.runAsync(() async {
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawRect(const Rect.fromLTWH(0, 0, 8, 8), Paint()..color = const Color(0xFFF2EFE8));
+      final img = await recorder.endRecording().toImage(8, 8);
+      return (await img.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
+    }))!;
+
+/// Fa avanzare il tempo a piccoli passi lasciando lavorare il database,
+/// senza aspettare la fine delle animazioni infinite (schermata di analisi).
+Future<void> _advance(WidgetTester tester, Duration total) async {
+  const step = Duration(milliseconds: 100);
+  for (var t = Duration.zero; t < total; t += step) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
+    await tester.pump(step);
+  }
+}
 
 Future<void> _pumpApp(WidgetTester tester, AppState state) async {
   tester.view.physicalSize = const Size(390, 844) * 3;
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(ScontriniApp(state: state));
-  await tester.pumpAndSettle();
+  await _settle(tester);
 }
+
+/// Lascia lavorare il database (I/O reale fuori dal tempo finto) e poi
+/// completa animazioni e ricostruzioni.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 3; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+    await tester.pumpAndSettle();
+  }
+}
+
+Future<AppState> _state(WidgetTester tester, FakeApp app, {bool configured = true, bool seeded = true}) async =>
+    (await tester.runAsync(() => app.state(configured: configured, seeded: seeded)))!;
+
+void _push(WidgetTester tester, Widget screen) => unawaited(
+    tester.state<NavigatorState>(find.byType(Navigator).first).push(MaterialPageRoute<void>(builder: (_) => screen)));
 
 void main() {
   setUpAll(() => initializeDateFormatting('it_IT'));
 
-  testWidgets('Primo avvio: pulsante disabilitato finché mancano i campi', (tester) async {
-    final server = FakeServer();
-    await _pumpApp(tester, server.state(configured: false));
-    expect(find.text('Collega il tuo server'), findsOneWidget);
-    final button = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Prova e collega'));
+  testWidgets('Primo avvio: modello precompilato, pulsante disabilitato senza chiave', (tester) async {
+    final app = FakeApp();
+    await _pumpApp(tester, await _state(tester, app, configured: false, seeded: false));
+    expect(find.text('Benvenuto in Scontrini'), findsOneWidget);
+    expect(find.text('Ripristina da un backup'), findsOneWidget);
+    expect(find.text(defaultOpenRouterModel), findsWidgets);
+    final button = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Verifica e inizia'));
     expect(button.onPressed, isNull);
   });
 
-  testWidgets('Primo avvio: token rifiutato, nulla viene salvato', (tester) async {
-    final server = FakeServer()..healthStatus = 401;
-    final state = server.state(configured: false);
+  testWidgets('Primo avvio: chiave rifiutata, nulla viene salvato', (tester) async {
+    final app = FakeApp();
+    app.ai.probeError = AiException(AiErrorKind.badKey, 'Il servizio ha rifiutato la chiave.');
+    final state = await _state(tester, app, configured: false, seeded: false);
     await _pumpApp(tester, state);
-    final fields = find.byType(TextField);
-    await tester.enterText(fields.at(0), 'https://example.supabase.co');
-    await tester.enterText(fields.at(1), 'sbagliato');
+    await tester.enterText(find.byType(TextField).last, 'sbagliata');
     await tester.pump();
-    await tester.tap(find.text('Prova e collega'));
+    await tester.tap(find.text('Verifica e inizia'));
+    await _settle(tester);
+    expect(find.text('Il servizio ha rifiutato la chiave.'), findsOneWidget);
+    expect(state.config.isConfigured, isFalse);
+    expect(app.keys.values, isEmpty);
+  });
+
+  testWidgets("Primo avvio: chiave valida, si entra nell'app", (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app, configured: false, seeded: false);
+    await _pumpApp(tester, state);
+    await tester.enterText(find.byType(TextField).last, '  sk-or-v1-abc  ');
+    await tester.pump();
+    await tester.tap(find.text('Verifica e inizia'));
+    await _settle(tester);
+    expect(state.config.isConfigured, isTrue);
+    expect(app.keys.values.values, contains('sk-or-v1-abc'));
+    expect(app.ai.probes.single.provider, AiProvider.openRouter);
+    expect(find.byType(HomeShell), findsOneWidget);
+  });
+
+  testWidgets('Primo avvio: endpoint compatibile senza https', (tester) async {
+    final app = FakeApp();
+    await _pumpApp(tester, await _state(tester, app, configured: false, seeded: false));
+    await tester.tap(find.text('Altro servizio'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Il server ha rifiutato il token'), findsOneWidget);
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'http://192.168.1.10:11434/v1');
+    await tester.enterText(fields.at(1), 'llava');
+    await tester.enterText(fields.at(2), 'chiave');
+    await tester.pump();
+    await tester.tap(find.text('Verifica e inizia'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('deve iniziare con https://'), findsOneWidget);
+    expect(app.ai.probes, isEmpty);
+  });
+
+  testWidgets('Primo avvio: ripristino di un backup, poi la chiave', (tester) async {
+    final source = FakeApp();
+    final bytes = (await tester.runAsync(() async {
+      await source.state();
+      return Backup.create(source.repo, appVersion: 'test');
+    }))!;
+    final app = FakeApp();
+    app.files.toOpen = bytes;
+    final state = await _state(tester, app, configured: false, seeded: false);
+    await _pumpApp(tester, state);
+    await tester.tap(find.text('Ripristina da un backup'));
+    await _settle(tester);
+    expect(find.text('Backup ripristinato'), findsOneWidget);
+    expect(find.textContaining('5 scontrini'), findsOneWidget);
+    expect(find.text('Ripristina da un backup'), findsNothing);
+    expect(find.text('Inserisci la chiave API'), findsOneWidget);
     expect(state.config.isConfigured, isFalse);
   });
 
-  testWidgets('Primo avvio: indirizzo senza https', (tester) async {
-    final server = FakeServer();
-    final state = server.state(configured: false);
-    await _pumpApp(tester, state);
-    final fields = find.byType(TextField);
-    await tester.enterText(fields.at(0), 'http://example.org');
-    await tester.enterText(fields.at(1), 'token');
-    await tester.pump();
-    await tester.tap(find.text('Prova e collega'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining("deve iniziare con https://"), findsOneWidget);
-    expect(server.requests, isEmpty);
-  });
-
   testWidgets('Movimenti: card, gruppi per giorno e badge', (tester) async {
-    final server = FakeServer();
-    await _pumpApp(tester, server.state());
+    final app = FakeApp();
+    await _pumpApp(tester, await _state(tester, app));
     expect(find.textContaining('4 scontrini · 2 da controllare'), findsOneWidget);
     expect(find.text('Esselunga'), findsOneWidget);
     expect(find.text('Totale da verificare'), findsOneWidget);
@@ -80,33 +144,33 @@ void main() {
   });
 
   testWidgets('Navigazione tra le schede', (tester) async {
-    final server = FakeServer();
-    final state = server.state();
+    final app = FakeApp();
+    final state = await _state(tester, app);
     await _pumpApp(tester, state);
     await tester.tap(find.bySemanticsLabel('Spese'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(state.tab, AppTab.stats);
     expect(find.text('Categoria principale'), findsOneWidget);
     expect(find.text('Senza categoria'), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('Categorie'));
-    await tester.pumpAndSettle();
-    expect(find.text('212 righe'), findsOneWidget);
+    await _settle(tester);
+    expect(find.text('5 righe'), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel(RegExp('^Casa')));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Modifica categoria'), findsOneWidget);
-    expect(find.textContaining('le sue 64 righe restano'), findsOneWidget);
+    expect(find.textContaining('la sua riga resta'), findsOneWidget);
   });
 
   testWidgets('Spese: tocco su una categoria apre Movimenti filtrato', (tester) async {
-    final server = FakeServer();
-    final state = server.state();
+    final app = FakeApp();
+    final state = await _state(tester, app);
     await _pumpApp(tester, state);
     state.setTab(AppTab.stats);
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.bySemanticsLabel(RegExp(r'^Salute,')));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(state.tab, AppTab.movements);
     expect(state.movementsCategory, 5);
     expect(find.text('Farmacia Comunale'), findsOneWidget);
@@ -114,10 +178,10 @@ void main() {
   });
 
   testWidgets('Dettaglio: banner del totale e riga espandibile', (tester) async {
-    final server = FakeServer();
-    await _pumpApp(tester, server.state());
+    final app = FakeApp();
+    await _pumpApp(tester, await _state(tester, app));
     await tester.tap(find.text('Esselunga'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.byType(ReceiptScreen), findsOneWidget);
     expect(find.textContaining('Le righe sommano'), findsOneWidget);
     expect(find.text('Va bene così'), findsOneWidget);
@@ -127,20 +191,18 @@ void main() {
     await tester.ensureVisible(find.bySemanticsLabel('Casa').last);
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('Casa').last);
-    await tester.pumpAndSettle();
-    final patch = server.requests.where((r) => r.method == 'PATCH').toList();
-    expect(patch.single.url.path, endsWith('/items/i2'));
-    expect(patch.single.body, contains('"category_id":3'));
+    await _settle(tester);
+    final r = (await tester.runAsync(() => app.repo.receipt('r1')))!;
+    expect(r.items.firstWhere((i) => i.description == 'Pane casereccio').categoryId, 3);
   });
 
   testWidgets('Analisi: passaggi e Annulla', (tester) async {
-    final server = FakeServer()..scanCompleter = Completer<http.Response>();
-    final state = server.state();
+    final app = FakeApp();
+    app.ai.scanCompleter = Completer<AiScan>();
+    final state = await _state(tester, app);
     await _pumpApp(tester, state);
-    state.scan.start(_png, 'image/png');
-    unawaited(tester.state<NavigatorState>(find.byType(Navigator).first).push(
-      MaterialPageRoute<void>(builder: (_) => const ScanScreen()),
-    ));
+    state.scan.start(await _photo(tester), 'image/png');
+    _push(tester, const ScanScreen());
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Sto leggendo le righe…'), findsOneWidget);
@@ -150,10 +212,57 @@ void main() {
     await tester.tap(find.text('Annulla'));
     await tester.pumpAndSettle();
     expect(state.scan.job, isNull);
-    // La risposta arriva dopo l'annullamento: lo scontrino viene eliminato.
-    server.scanCompleter!.complete(http.Response('{"id":"nuovo","total":1,"items":[]}', 201));
+    // La risposta arriva dopo l'annullamento: lo scontrino non viene salvato.
+    app.ai.scanCompleter!.complete(AiScan(FakeAi.sampleScan, 'm'));
+    await _settle(tester);
+    expect((await tester.runAsync(app.repo.allReceipts))!.length, 5);
+  });
+
+  testWidgets('Analisi completata: lo scontrino viene salvato e aperto', (tester) async {
+    final app = FakeApp();
+    app.ai.scanCompleter = Completer<AiScan>();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    state.scan.start(await _photo(tester), 'image/png');
+    _push(tester, const ScanScreen());
+    await tester.pump();
+    app.ai.scanCompleter!.complete(AiScan(FakeAi.sampleScan, 'google/gemini-2.5-flash'));
+    await _advance(tester, const Duration(seconds: 2));
+    await _settle(tester);
+    expect(find.byType(ReceiptScreen), findsOneWidget);
+    expect(find.text('Latte'), findsOneWidget);
+    expect((await tester.runAsync(app.repo.allReceipts))!.length, 6);
+  });
+
+  testWidgets('Impostazioni: backup salvato senza chiave API', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    state.setTab(AppTab.settings);
     await tester.pumpAndSettle();
-    expect(server.requests.any((r) => r.method == 'DELETE' && r.url.path.endsWith('/receipts/nuovo')), isTrue);
+    await tester.ensureVisible(find.text('Crea backup'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Crea backup'));
+    await _settle(tester);
+    expect(app.files.saved.keys.single, startsWith('scontrini-backup-'));
+    final text = app.savedText(app.files.saved.keys.single);
+    expect(text, contains('"format": "scontrini-backup"'));
+    expect(text, isNot(contains('sk-or-test-key')));
+    expect(find.textContaining('Ultimo: '), findsOneWidget);
+  });
+
+  testWidgets('Esportazione: CSV righe del mese', (tester) async {
+    final app = FakeApp();
+    await _pumpApp(tester, await _state(tester, app));
+    _push(tester, const ExportScreen());
+    await _settle(tester);
+    expect(find.text('4 scontrini nel periodo.'), findsOneWidget);
+    await tester.tap(find.text('Esporta e salva'));
+    await _settle(tester);
+    final name = app.files.saved.keys.single;
+    expect(name, matches(RegExp(r'^scontrini-righe-\d{4}-\d{2}\.csv$')));
+    final csv = app.savedText(name);
+    expect(csv.split('\r\n').where((l) => l.isNotEmpty).length, 1 + 11);
+    expect(csv, contains(';Spazzolino;Igiene;;;50,40;EUR;r1'));
   });
 }
-

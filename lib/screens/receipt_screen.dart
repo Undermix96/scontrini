@@ -53,7 +53,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   Future<void> _load() async {
     setState(() => _error = null);
     try {
-      final r = await _state.api.receipt(widget.receiptId);
+      final r = await _state.repo.receipt(widget.receiptId);
       if (mounted) setState(() => _r = r);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -99,7 +99,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      await _state.api.deleteReceipt(widget.receiptId);
+      await _state.repo.deleteReceipt(widget.receiptId);
       _dirty = true;
       if (mounted) {
         Navigator.pop(context);
@@ -117,7 +117,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     final before = List<String>.of(r.dismissedWarnings);
     setState(() => r.dismissedWarnings = {...before, w.code}.toList());
     try {
-      await _state.api.setDismissedWarnings(r.id, r.dismissedWarnings);
+      await _state.repo.setDismissedWarnings(r.id, r.dismissedWarnings);
       _dirty = true;
     } catch (e) {
       if (mounted) setState(() => r.dismissedWarnings = before);
@@ -132,7 +132,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     final old = item.categoryId;
     setState(() => item.categoryId = categoryId);
     try {
-      await _state.api.updateItem(item.id, {'category_id': categoryId});
+      await _state.repo.updateItem(item.id, {'category_id': categoryId});
       _dirty = true;
     } catch (e) {
       if (mounted) setState(() => item.categoryId = old);
@@ -161,7 +161,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       apply(desc, total);
     }
     try {
-      await _state.api.updateItem(item.id, fields);
+      await _state.repo.updateItem(item.id, fields);
       _dirty = true;
     } catch (e) {
       if (mounted) {
@@ -174,7 +174,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   Future<void> _addItem() async {
     final r = _r!;
     try {
-      final item = await _state.api.addItem(r.id, {'description': '', 'total': 0});
+      final item = await _state.repo.addItem(r.id, {'description': '', 'total': 0});
       _dirty = true;
       if (!mounted) return;
       setState(() {
@@ -194,7 +194,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       r.items = [...r.items]..remove(item);
       if (_expanded == item.id) _expanded = null;
     });
-    final api = _state.api;
+    final repo = _state.repo;
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     var undone = false;
@@ -216,7 +216,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         .then((_) async {
       if (undone) return;
       try {
-        await api.deleteItem(item.id);
+        await repo.deleteItem(item.id);
         _dirty = true;
         if (!mounted) _state.dataChanged();
       } catch (e) {
@@ -803,7 +803,7 @@ class _HeaderSheetState extends State<_HeaderSheet> {
       _error = null;
     });
     try {
-      final updated = await AppScope.read(context).api.updateReceipt(widget.receipt.id, {
+      final updated = await AppScope.read(context).repo.updateReceipt(widget.receipt.id, {
         'merchant': _merchant.text.trim(),
         'payment_method': _payment.text.trim().isEmpty ? null : _payment.text.trim(),
         'total': total,

@@ -98,7 +98,7 @@ I valori completi sono in [`tokens.json`](tokens.json). Qui ci sono i più impor
 
 ### Colori delle categorie
 
-Le categorie hanno lo stesso colore in tutti e due i temi. La tabella riporta i colori proposti per le 10 categorie del seed in `supabase/migrations/20261104000000_init.sql`:
+Le categorie hanno lo stesso colore in tutti e due i temi. La tabella riporta i colori proposti per le 10 categorie iniziali (`defaultCategories` in `lib/data/db.dart`):
 
 | Categoria | Attuale nel seed | Proposto |
 |---|---|---|

@@ -32,9 +32,6 @@ ios/Flutter/flutter_export_environment.sh
 *.ipa
 Payload/
 
-# Supabase
-supabase/.temp/
-supabase/.branches/
 .env
 .env.*
 !.env.example

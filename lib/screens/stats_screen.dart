@@ -43,8 +43,8 @@ class _StatsScreenState extends State<StatsScreen> {
     final prev = DateTime(_month.year, _month.month - 1);
     try {
       final res = await Future.wait([
-        s.api.stats(from: monthStart(_month), to: monthEnd(_month)),
-        s.api.stats(from: monthStart(prev), to: monthEnd(prev)),
+        s.repo.stats(from: monthStart(_month), to: monthEnd(_month)),
+        s.repo.stats(from: monthStart(prev), to: monthEnd(prev)),
       ]);
       if (!mounted || id != _request) return;
       final t = res[0]..sort((a, b) => b.total.compareTo(a.total));

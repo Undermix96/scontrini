@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 
-import 'api.dart';
+import 'ai/ai_client.dart';
 import 'config.dart';
+import 'data/repository.dart';
+import 'files.dart';
 import 'models.dart';
 import 'scan_controller.dart';
 import 'widgets/month_selector.dart';
@@ -9,20 +11,25 @@ import 'widgets/month_selector.dart';
 /// Schede della shell, nell'ordine della barra di navigazione.
 enum AppTab { movements, stats, categories, settings }
 
-/// Stato condiviso: configurazione, client API, categorie, scheda attiva,
-/// filtri di Movimenti e analisi in corso.
+/// Stato condiviso: configurazione, dati locali, client AI, categorie,
+/// scheda attiva, filtri di Movimenti e analisi in corso.
 class AppState extends ChangeNotifier {
   final AppConfig config;
-  final Api api;
+  final AiClient ai;
+  final FileGateway files;
   late final ScanController scan = ScanController(this);
   List<Category> categories = [];
 
-  /// [api] si può sostituire nei test.
-  AppState(this.config, {Api? api}) : api = api ?? Api(config);
+  /// [ai] e [files] si possono sostituire nei test.
+  AppState(this.config, {AiClient? ai, FileGateway? files})
+      : ai = ai ?? AiClient(),
+        files = files ?? const SystemFiles();
+
+  Repository get repo => config.repo;
 
   // ------------------------------------------------------------- dati
 
-  /// Incrementato quando i dati sul server cambiano (configurazione salvata,
+  /// Incrementato quando i dati cambiano (configurazione salvata,
   /// scontrino letto, modificato o eliminato): le schermate lo osservano per
   /// ricaricare.
   int dataVersion = 0;
@@ -44,11 +51,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> reloadCategories() async {
-    if (!config.isConfigured) return;
-    categories = await api.categories();
+    categories = await repo.categories();
     notifyListeners();
   }
 
+  /// Configurazione salvata o backup ripristinato: ricarica tutto.
   Future<void> configSaved() async {
     try {
       await reloadCategories();

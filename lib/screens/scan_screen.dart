@@ -150,7 +150,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       if (keep == false) {
         _scan.clear();
         try {
-          await state.api.deleteReceipt(r.id);
+          await state.repo.deleteReceipt(r.id);
           state.dataChanged();
           if (mounted) showSnack(context, 'Doppione eliminato.');
         } catch (e) {

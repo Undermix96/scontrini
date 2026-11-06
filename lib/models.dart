@@ -112,7 +112,7 @@ class Receipt {
   double? itemsSum;
   int? dominantCategoryId;
 
-  /// Avvisi aperti calcolati dal server (già esclusi quelli ignorati).
+  /// Avvisi aperti (già esclusi quelli ignorati).
   List<ReceiptWarning> warnings;
   List<String> dismissedWarnings;
   String? duplicateOf;

@@ -65,9 +65,9 @@ class _CategorySheetState extends State<_CategorySheet> {
     });
     try {
       if (widget.cat == null) {
-        await state.api.addCategory(name, _color);
+        await state.repo.addCategory(name, _color);
       } else {
-        await state.api.updateCategory(widget.cat!.id, name: name, color: _color);
+        await state.repo.updateCategory(widget.cat!.id, name: name, color: _color);
       }
       await state.reloadCategories();
       if (mounted) Navigator.pop(context, true);
@@ -99,7 +99,7 @@ class _CategorySheetState extends State<_CategorySheet> {
     final state = AppScope.read(context);
     setState(() => _busy = true);
     try {
-      await state.api.deleteCategory(cat.id);
+      await state.repo.deleteCategory(cat.id);
       await state.reloadCategories();
       state.dataChanged();
       if (mounted) Navigator.pop(context, true);

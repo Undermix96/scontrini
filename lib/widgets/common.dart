@@ -129,7 +129,7 @@ class LabeledField extends StatelessWidget {
           suffixIcon: onToggleObscure == null
               ? null
               : IconButton(
-                  tooltip: obscure ? 'Mostra token' : 'Nascondi token',
+                  tooltip: obscure ? 'Mostra chiave' : 'Nascondi chiave',
                   icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
                   onPressed: onToggleObscure,
                 ),

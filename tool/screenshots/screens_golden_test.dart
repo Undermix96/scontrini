@@ -12,14 +12,15 @@ import 'dart:ui' show ImageByteFormat, PictureRecorder;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:scontrini/ai/ai_client.dart';
 import 'package:scontrini/app_state.dart';
 import 'package:scontrini/main.dart';
+import 'package:scontrini/screens/export_screen.dart';
 import 'package:scontrini/screens/receipt_screen.dart';
 import 'package:scontrini/screens/scan_screen.dart';
 
-import '../../test/support/fake_server.dart';
+import '../../test/support/fake_app.dart';
 
 Future<void> _loadFont(String family, List<String> paths) async {
   final loader = FontLoader(family);
@@ -38,17 +39,28 @@ Future<void> _loadFonts() async {
   if (icons.existsSync()) await _loadFont('MaterialIcons', [icons.path]);
 }
 
-Future<AppState> _setup(WidgetTester tester, FakeServer server, Brightness b, {bool configured = true}) async {
+/// Lascia lavorare il database (I/O reale fuori dal tempo finto).
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 3; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+    await tester.pumpAndSettle();
+  }
+}
+
+Future<AppState> _setup(WidgetTester tester, FakeApp app, Brightness b, {bool configured = true}) async {
   tester.view.physicalSize = const Size(390, 844) * 2;
   tester.view.devicePixelRatio = 2;
   tester.platformDispatcher.platformBrightnessTestValue = b;
   addTearDown(tester.view.reset);
   addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-  final state = server.state(configured: configured);
+  final state = (await tester.runAsync(() => app.state(configured: configured, seeded: configured)))!;
   await tester.pumpWidget(ScontriniApp(state: state));
-  await tester.pumpAndSettle();
+  await _settle(tester);
   return state;
 }
+
+void _push(WidgetTester tester, Widget screen) => unawaited(
+    tester.state<NavigatorState>(find.byType(Navigator).first).push(MaterialPageRoute<void>(builder: (_) => screen)));
 
 Future<void> _shot(String name) =>
     expectLater(find.byType(MaterialApp), matchesGoldenFile('out/$name.png'));
@@ -60,13 +72,13 @@ void main() {
   });
 
   // Testo ingrandito a 1,3: nessun importo tagliato (checklist del design).
-  for (final tab in [AppTab.movements, AppTab.stats, AppTab.categories]) {
+  for (final tab in [AppTab.movements, AppTab.stats, AppTab.categories, AppTab.settings]) {
     testWidgets('text 1.3 ${tab.name}', (tester) async {
       tester.platformDispatcher.textScaleFactorTestValue = 1.3;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      final s = await _setup(tester, FakeServer(), Brightness.dark);
+      final s = await _setup(tester, FakeApp(), Brightness.dark);
       s.setTab(tab);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       await _shot('text13_${tab.name}');
     });
   }
@@ -74,53 +86,73 @@ void main() {
   testWidgets('text 1.3 receipt', (tester) async {
     tester.platformDispatcher.textScaleFactorTestValue = 1.3;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    await _setup(tester, FakeServer(), Brightness.light);
+    await _setup(tester, FakeApp(), Brightness.light);
     await tester.tap(find.text('Esselunga'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await _shot('text13_receipt');
+  });
+
+  testWidgets('text 1.3 setup', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _setup(tester, FakeApp(), Brightness.light, configured: false);
+    await _shot('text13_setup');
   });
 
   for (final b in Brightness.values) {
     final t = b == Brightness.dark ? 'dark' : 'light';
 
     testWidgets('setup $t', (tester) async {
-      await _setup(tester, FakeServer(), b, configured: false);
+      await _setup(tester, FakeApp(), b, configured: false);
       await _shot('setup_$t');
+      await tester.tap(find.text('Altro servizio'));
+      await tester.pumpAndSettle();
+      await _shot('setup_custom_$t');
     });
 
     testWidgets('home $t', (tester) async {
-      await _setup(tester, FakeServer(), b);
+      await _setup(tester, FakeApp(), b);
       await _shot('home_$t');
     });
 
     testWidgets('stats $t', (tester) async {
-      final s = await _setup(tester, FakeServer(), b);
+      final s = await _setup(tester, FakeApp(), b);
       s.setTab(AppTab.stats);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       await _shot('stats_$t');
     });
 
     testWidgets('categories $t', (tester) async {
-      final s = await _setup(tester, FakeServer(), b);
+      final s = await _setup(tester, FakeApp(), b);
       s.setTab(AppTab.categories);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       await _shot('categories_$t');
       await tester.tap(find.bySemanticsLabel(RegExp('^Casa')));
-      await tester.pumpAndSettle();
+      await _settle(tester);
       await _shot('categories_sheet_$t');
     });
 
     testWidgets('settings $t', (tester) async {
-      final s = await _setup(tester, FakeServer(), b);
+      final s = await _setup(tester, FakeApp(), b);
       s.setTab(AppTab.settings);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       await _shot('settings_$t');
+      await tester.ensureVisible(find.text('Informazioni'));
+      await tester.pumpAndSettle();
+      await _shot('settings_data_$t');
+    });
+
+    testWidgets('export $t', (tester) async {
+      await _setup(tester, FakeApp(), b);
+      _push(tester, const ExportScreen());
+      await _settle(tester);
+      await _shot('export_$t');
     });
 
     testWidgets('receipt $t', (tester) async {
-      await _setup(tester, FakeServer(), b);
+      await _setup(tester, FakeApp(), b);
       await tester.tap(find.text('Esselunga'));
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(find.byType(ReceiptScreen), findsOneWidget);
       await _shot('receipt_$t');
       await tester.tap(find.text('Pane casereccio'));
@@ -129,12 +161,12 @@ void main() {
     });
 
     testWidgets('scan $t', (tester) async {
-      final server = FakeServer()..scanCompleter = Completer<http.Response>();
-      final s = await _setup(tester, server, b);
+      final app = FakeApp();
+      app.ai.scanCompleter = Completer<AiScan>();
+      final s = await _setup(tester, app, b);
       final bytes = await _receiptPhoto(tester);
       s.scan.start(bytes, 'image/png');
-      unawaited(tester.state<NavigatorState>(find.byType(Navigator).first)
-          .push(MaterialPageRoute<void>(builder: (_) => const ScanScreen())));
+      _push(tester, const ScanScreen());
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 2000));
@@ -142,8 +174,8 @@ void main() {
       await _shot('scan_$t');
       await tester.tap(find.text('Annulla'));
       await tester.pumpAndSettle();
-      server.scanCompleter!.complete(http.Response('{"id":"x","total":0,"items":[]}', 201));
-      await tester.pumpAndSettle();
+      app.ai.scanCompleter!.complete(AiScan(FakeAi.sampleScan, 'm'));
+      await _settle(tester);
     });
   }
 }

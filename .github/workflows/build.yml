@@ -19,8 +19,6 @@ permissions:
 
 env:
   FLUTTER_VERSION: "3.47.9"
-  # URL del progetto Supabase (non segreto): Settings → Variables → SUPABASE_URL
-  SUPABASE_URL: ${{ vars.SUPABASE_URL }}
 
 jobs:
   # Versione CalVer: nome = data della build (fuso Europe/Rome, es. 2026.11.5),
@@ -99,7 +97,6 @@ jobs:
         run: >-
           flutter build apk --release --split-per-abi
           --build-name="$APP_VERSION" --build-number="$APP_BUILD"
-          --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=APP_VERSION="$APP_VERSION" --dart-define=APP_BUILD="$APP_BUILD"
 
       - name: Rimuovi keystore
@@ -140,7 +137,6 @@ jobs:
         run: >-
           flutter build ios --release --no-codesign
           --build-name="$APP_VERSION" --build-number="$APP_BUILD"
-          --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=APP_VERSION="$APP_VERSION" --dart-define=APP_BUILD="$APP_BUILD"
 
       - name: Crea IPA non firmato

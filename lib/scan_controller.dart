@@ -82,13 +82,13 @@ class ScanController extends ChangeNotifier {
   Future<void> _run(ScanJob j) async {
     try {
       if (app.categories.isEmpty) await app.reloadCategories();
-      final r = await app.api.scan(j.bytes, j.mime);
+      final names = app.categories.map((c) => c.name).toList();
+      final res = await app.ai.scan(app.config.endpoint, j.bytes, j.mime, names);
+      // Annullata mentre l'AI lavorava: il risultato non viene salvato.
+      if (!identical(job, j)) return;
+      final r = await app.repo.saveScan(res.parsed, model: res.model);
       if (!identical(job, j)) {
-        // Annullata mentre il server lavorava: lo scontrino è stato salvato
-        // comunque, quindi lo eliminiamo.
-        try {
-          await app.api.deleteReceipt(r.id);
-        } catch (_) {}
+        await app.repo.deleteReceipt(r.id);
         return;
       }
       j.status = ScanStatus.done;
@@ -102,7 +102,7 @@ class ScanController extends ChangeNotifier {
     _changed();
   }
 
-  /// Annulla: la richiesta prosegue sul server, ma il risultato verrà eliminato.
+  /// Annulla: la richiesta all'AI prosegue, ma il risultato verrà scartato.
   void cancel() {
     job = null;
     _changed();

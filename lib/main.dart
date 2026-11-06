@@ -4,6 +4,8 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app_state.dart';
 import 'config.dart';
+import 'data/db.dart';
+import 'data/repository.dart';
 import 'scan_controller.dart';
 import 'screens/categories_screen.dart';
 import 'screens/movements_screen.dart';
@@ -16,11 +18,11 @@ import 'theme/theme.dart';
 import 'widgets/common.dart';
 import 'widgets/floating_nav_bar.dart';
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('it_IT');
-  final config = AppConfig();
+  final db = await AppDatabase.open();
+  final config = AppConfig(Repository(db));
   await config.load();
   runApp(ScontriniApp(state: AppState(config)));
 }

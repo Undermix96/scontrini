@@ -80,8 +80,8 @@ class _MovementsScreenState extends State<MovementsScreen> {
     final filtered = s.movementsCategory != null || s.movementsQuery.trim().isNotEmpty;
     try {
       final results = await Future.wait([
-        s.api.receipts(from: from, to: to),
-        if (filtered) s.api.receipts(from: from, to: to, q: s.movementsQuery, categoryId: s.movementsCategory),
+        s.repo.receipts(from: from, to: to),
+        if (filtered) s.repo.receipts(from: from, to: to, q: s.movementsQuery, categoryId: s.movementsCategory),
       ]);
       if (!mounted || id != _request) return;
       setState(() {

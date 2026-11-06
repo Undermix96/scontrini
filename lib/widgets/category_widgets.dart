@@ -4,13 +4,14 @@ import '../theme/tokens.dart';
 import 'common.dart';
 
 /// Chip di categoria a selezione singola (si comporta come un pulsante di opzione).
+/// Senza [color] è un'opzione semplice, senza pallino.
 class CategoryChip extends StatelessWidget {
   final String name;
-  final Color color;
+  final Color? color;
   final bool selected;
   final VoidCallback onTap;
 
-  const CategoryChip({super.key, required this.name, required this.color, required this.selected, required this.onTap});
+  const CategoryChip({super.key, required this.name, this.color, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -29,10 +30,9 @@ class CategoryChip extends StatelessWidget {
           onTap: onTap,
           child: Container(
             height: Sizes.chip,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: color == null ? 16 : 12),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              CategoryDot(color: color, size: 10),
-              const SizedBox(width: 6),
+              if (color != null) ...[CategoryDot(color: color!, size: 10), const SizedBox(width: 6)],
               Text(name, style: AppText.label.copyWith(color: selected ? c.onCta : c.onSurface)),
             ]),
           ),
