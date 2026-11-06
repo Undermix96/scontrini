@@ -68,7 +68,10 @@ class FakeApp {
   final ai = FakeAi();
   final files = FakeFiles();
 
-  FakeApp({DateTime? now}) : now = now ?? DateTime.now();
+  FakeApp({DateTime? now}) : now = now ?? DateTime.now() {
+    // Ogni test crea il proprio database in memoria: è voluto.
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  }
 
   /// Giorni fa, senza uscire dal mese corrente (le schermate mostrano un
   /// mese alla volta).
