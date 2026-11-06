@@ -1,10 +1,12 @@
 import 'dart:convert';
 
+import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
 
 import '../config.dart';
 import '../models.dart';
 import 'db.dart';
+import 'photos.dart';
 import 'repository.dart';
 
 /// File di backup: un JSON con tutti i dati e le impostazioni AI non segrete.
@@ -21,17 +23,20 @@ import 'repository.dart';
 /// ```
 ///
 /// Versioni: 1 senza budget; 2 con `budgets` (solo nel backup, non
-/// nell'esportazione).
+/// nell'esportazione); 3 con `photos` (foto conservate). Con almeno una foto
+/// il backup è uno ZIP con `backup.json` e la cartella `photos/`; senza foto
+/// resta il solo JSON.
 class Backup {
   static const format = 'scontrini-backup';
   static const exportFormat = 'scontrini-export';
-  static const version = 2;
+  static const version = 3;
+  static const jsonName = 'backup.json';
 
   /// Impostazioni salvate nel backup (mai la chiave API).
   static const settingKeys = [AppConfig.kProvider, AppConfig.kBaseUrl, AppConfig.kModel];
 
-  static String fileName(DateTime d) =>
-      'scontrini-backup-${d.year}-${_two(d.month)}-${_two(d.day)}.json';
+  static String fileName(DateTime d, {bool zip = false}) =>
+      'scontrini-backup-${d.year}-${_two(d.month)}-${_two(d.day)}.${zip ? 'zip' : 'json'}';
   static String _two(int n) => n.toString().padLeft(2, '0');
 
   static String? _iso(int? ms) =>
@@ -101,7 +106,25 @@ class Backup {
     };
   }
 
-  /// Contenuto del file di backup.
+  /// File di backup: JSON, oppure ZIP se ci sono foto conservate.
+  static Future<BackupFile> createFile(Repository repo, {required String appVersion, DateTime? now}) async {
+    final at = now ?? repo.now();
+    final json = await create(repo, appVersion: appVersion, now: at);
+    final rows = await repo.db.select(repo.db.receiptPhotos).get();
+    final store = repo.photos;
+    if (rows.isEmpty || store == null) {
+      return BackupFile(fileName(at), json, 'application/json');
+    }
+    final archive = Archive()..add(ArchiveFile.bytes(jsonName, json));
+    for (final r in rows) {
+      final bytes = await store.read(r.fileName);
+      // Le foto sono già compresse: nello ZIP vanno senza ricomprimerle.
+      if (bytes != null) archive.add(ArchiveFile.noCompress('photos/${r.fileName}', bytes.length, bytes));
+    }
+    return BackupFile(fileName(at, zip: true), Uint8List.fromList(ZipEncoder().encode(archive)), 'application/zip');
+  }
+
+  /// Contenuto JSON del backup (dentro lo ZIP se ci sono foto).
   static Future<Uint8List> create(Repository repo, {required String appVersion, DateTime? now}) async {
     final settings = <String, String>{};
     for (final k in settingKeys) {
@@ -125,6 +148,18 @@ class Backup {
             'created_at': _iso(b.createdAt),
           },
       ],
+      'photos': [
+        for (final p in await (repo.db.select(repo.db.receiptPhotos)
+              ..orderBy([(p) => OrderingTerm(expression: p.receiptId), (p) => OrderingTerm(expression: p.position)]))
+            .get())
+          {
+            'id': p.id,
+            'receipt_id': p.receiptId,
+            'position': p.position,
+            'file_name': p.fileName,
+            'created_at': _iso(p.createdAt),
+          },
+      ],
     };
     return Uint8List.fromList(utf8.encode(const JsonEncoder.withIndent(' ').convert(json)));
   }
@@ -146,12 +181,34 @@ class Backup {
   /// Ripristina un backup in un'app appena installata. Tutto o niente: se il
   /// file non è valido il database resta com'era.
   static Future<RestoreSummary> restore(Repository repo, Uint8List bytes) async {
-    final parsed = _parse(bytes);
+    var json = bytes;
+    Map<String, Uint8List> files = const {};
+    if (_isZip(bytes)) {
+      final Archive archive;
+      try {
+        archive = ZipDecoder().decodeBytes(bytes);
+      } catch (_) {
+        throw DataException('Il file non è un backup di Scontrini.');
+      }
+      final main = archive.findFile(jsonName);
+      if (main == null) throw DataException('Il file non è un backup di Scontrini.');
+      json = main.content;
+      files = {
+        for (final f in archive.files)
+          if (f.isFile && f.name.startsWith('photos/')) f.name.substring('photos/'.length): f.content,
+      };
+    }
+    final parsed = _parse(json);
+    for (final p in parsed.photos) {
+      if (!files.containsKey(p.fileName.value)) throw DataException('Backup danneggiato: manca una foto.');
+    }
+    if (parsed.photos.isNotEmpty && repo.photos == null) throw DataException('Cartella delle foto non disponibile.');
     final db = repo.db;
     if (await repo.hasReceipts() || await repo.setting(AppConfig.kSetupDone) == 'true') {
       throw DataException("Il ripristino è possibile solo al primo avvio, prima di usare l'app.");
     }
     await db.transaction(() async {
+      await db.delete(db.receiptPhotos).go();
       await db.delete(db.budgets).go();
       await db.delete(db.receiptItems).go();
       await db.delete(db.receipts).go();
@@ -172,9 +229,18 @@ class Backup {
       });
       final fk = await db.customSelect('PRAGMA foreign_key_check').get();
       if (fk.isNotEmpty) throw DataException('Il backup contiene riferimenti non validi.');
+      // Le foto per ultime: se qualcosa va storto la transazione si annulla
+      // e i file scritti vengono tolti da cleanPhotos all'avvio.
+      for (final p in parsed.photos) {
+        await repo.photos!.write(p.fileName.value, files[p.fileName.value]!);
+        await db.into(db.receiptPhotos).insert(p);
+      }
     });
     return RestoreSummary(parsed.receipts.length, parsed.categories.length, parsed.createdAt);
   }
+
+  /// Intestazione di un file ZIP ("PK\x03\x04").
+  static bool _isZip(Uint8List b) => b.length > 4 && b[0] == 0x50 && b[1] == 0x4B && b[2] == 0x03 && b[3] == 0x04;
 
   static _Parsed _parse(Uint8List bytes) {
     dynamic json;
@@ -306,6 +372,28 @@ class Backup {
       ));
     }
 
+    final photos = <ReceiptPhotosCompanion>[];
+    final ph = json['photos'] ?? [];
+    if (ph is! List) throw DataException('Backup danneggiato: foto non valide.');
+    final photoIds = <String>{}, photoFiles = <String>{};
+    for (final x in ph) {
+      if (x is! Map) throw DataException('Backup danneggiato: foto non valida.');
+      final rid = req<String>(x, 'receipt_id');
+      if (!receiptIds.contains(rid)) throw DataException('Backup danneggiato: foto di uno scontrino inesistente.');
+      final name = req<String>(x, 'file_name');
+      final id = req<String>(x, 'id');
+      if (!PhotoStore.validName(name) || !photoFiles.add(name) || !photoIds.add(id)) {
+        throw DataException('Backup danneggiato: nome di foto non valido.');
+      }
+      photos.add(ReceiptPhotosCompanion.insert(
+        id: id,
+        receiptId: rid,
+        position: Value((x['position'] as num?)?.toInt() ?? 0),
+        fileName: name,
+        createdAt: ms(x, 'created_at') ?? 0,
+      ));
+    }
+
     final settings = <String, String>{};
     final s = json['settings'];
     if (s is Map) {
@@ -313,8 +401,8 @@ class Backup {
         if (s[k] is String) settings[k] = s[k] as String;
       }
     }
-    return _Parsed(
-        categories, receipts, items, budgets, settings, DateTime.tryParse('${json['created_at']}')?.toLocal());
+    return _Parsed(categories, receipts, items, budgets, photos, settings,
+        DateTime.tryParse('${json['created_at']}')?.toLocal());
   }
 }
 
@@ -323,9 +411,18 @@ class _Parsed {
   final List<ReceiptRow> receipts;
   final List<ItemRow> items;
   final List<BudgetsCompanion> budgets;
+  final List<ReceiptPhotosCompanion> photos;
   final Map<String, String> settings;
   final DateTime? createdAt;
-  _Parsed(this.categories, this.receipts, this.items, this.budgets, this.settings, this.createdAt);
+  _Parsed(this.categories, this.receipts, this.items, this.budgets, this.photos, this.settings, this.createdAt);
+}
+
+/// File di backup pronto da salvare.
+class BackupFile {
+  final String fileName;
+  final Uint8List bytes;
+  final String mimeType;
+  const BackupFile(this.fileName, this.bytes, this.mimeType);
 }
 
 class RestoreSummary {

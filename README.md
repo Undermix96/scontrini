@@ -7,7 +7,8 @@ Tutti i dati restano **solo sul telefono**.
 
 - Nessun account, nessun server: l'app parla soltanto con il servizio AI che configuri.
 - Nessun SDK di analytics, crash reporting, pubblicità, Firebase o Google Play Services.
-- Le foto non vengono conservate: vanno al servizio AI per la lettura e poi vengono scartate.
+- Le foto non vengono conservate, a meno che tu non lo scelga: vanno al servizio AI per la lettura e poi vengono scartate. Con l'opzione *Conserva le foto* (spenta di default) restano solo nella cartella privata dell'app, escluse dai backup di sistema.
+- Prima della lettura la foto si ritaglia e si raddrizza: il bordo dello scontrino viene proposto in automatico (codice nostro in Dart, niente ML Kit o OpenCV) e si corregge trascinando gli angoli.
 - Con OpenRouter l'app chiede `data_collection: deny`, cioè di usare solo fornitori che non conservano i dati e non li usano per l'addestramento.
 
 ## Architettura
@@ -22,7 +23,8 @@ App Flutter ──(HTTPS, la tua chiave)──▶ OpenRouter o servizio compatib
 - **Niente FFI nell'app**: il backend FFI di drift registra funzioni SQL come callback create a runtime in memoria eseguibile, che GrapheneOS segnala come *DCL via memory*. Con sqflite questo non succede e nell'APK non c'è una libreria SQLite precompilata. Per lo stesso motivo niente upsert (`ON CONFLICT DO UPDATE`): il SQLite di Android 7–10 non lo supporta.
 - **Aggiornamenti dello schema**: migrazioni versionate (`schemaVersion` in `lib/data/db.dart`), con gli schemi salvati in `drift_schemas/` e test di migrazione generati. Prima di ogni migrazione l'app salva una copia del file del database (`scontrini.pre-upgrade.sqlite`).
 - **Importi** in centesimi interi, **date** in UTC.
-- **Budget mensili** (totale e per categoria): ogni valore vale dal mese in cui lo imposti in poi, così cambiarlo non tocca i mesi passati. Avviso nell'app quando uno scontrino supera l'80% o il 100%. Entrano nel backup (formato versione 2; i backup della versione 1 si ripristinano ancora).
+- **Budget mensili** (totale e per categoria): ogni valore vale dal mese in cui lo imposti in poi, così cambiarlo non tocca i mesi passati. Avviso nell'app quando uno scontrino supera l'80% o il 100%. Entrano nel backup.
+- **Backup**: JSON, oppure ZIP (`backup.json` + `photos/`) se ci sono foto conservate. Formato versione 3; i backup delle versioni 1 e 2 si ripristinano ancora.
 - **Chiave API**: solo nel Keystore (Android) o nel Keychain (iOS). Non è mai nel binario, nel repository o nei backup.
 - **Blocco dell'app (facoltativo)**: PIN di 4–8 cifre salvato solo come hash PBKDF2-HMAC-SHA256 con salt nel Keystore/Keychain, attese crescenti dopo 5 errori; impronta o Face ID con le API di sistema ([local_auth](https://pub.dev/packages/local_auth), BiometricPrompt di AndroidX, niente Play Services), sempre con il PIN come riserva. Si riblocca dopo il tempo scelto fuori dall'app (default 1 minuto); il tempo passato in fotocamera, galleria o selettore di file non conta. Facoltativo anche lo schermo sicuro (`FLAG_SECURE` su Android, sfocatura nelle app recenti su iOS), acceso di default insieme al blocco. Le impostazioni del blocco non entrano nel backup.
 - **Backup di sistema disattivato**: su Android `allowBackup="false"` e regole di estrazione che escludono backup su cloud e trasferimento a un nuovo telefono; su iOS la cartella del database è esclusa dal backup iCloud. I dati escono dal telefono solo con il backup manuale dell'app.
@@ -34,7 +36,7 @@ Al primo avvio scegli:
 1. **Inizia**: scegli il servizio AI, il modello e incolla la chiave, poi *Verifica e inizia*. La configurazione viene salvata solo se la chiave funziona.
 2. **Ripristina da un backup**: scegli un file di backup; poi inserisci la chiave (che il backup non contiene).
 
-Poi il passo **Proteggi l'app**, facoltativo: PIN, impronta e "Nascondi nelle app recenti". Si può saltare e cambiare in seguito da *Impostazioni → Sicurezza*.
+Poi il passo **Privacy e sicurezza**, tutto facoltativo: PIN, impronta, "Nascondi nelle app recenti" e "Conserva le foto degli scontrini". Si può saltare e cambiare in seguito da *Impostazioni*.
 
 Servizi supportati:
 

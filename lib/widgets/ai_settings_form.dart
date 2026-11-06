@@ -266,6 +266,6 @@ class _PrivacyCard extends StatelessWidget {
         iconColor: context.colors.success,
         title: 'Nessun account, nessun tracker',
         text: 'I dati restano solo su questo telefono. La foto va soltanto al servizio AI che scegli tu, '
-            'per la lettura, e poi viene eliminata.',
+            '${AppScope.of(context).config.keepPhotos ? 'per la lettura; una copia resta qui sul telefono.' : 'per la lettura, e poi viene eliminata.'}',
       );
 }

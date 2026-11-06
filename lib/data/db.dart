@@ -61,6 +61,20 @@ class ReceiptItems extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Foto conservate di uno scontrino (facoltative): il file sta in
+/// `PhotoStore`, qui solo il nome. Più foto per gli scontrini lunghi.
+@DataClassName('PhotoRow')
+class ReceiptPhotos extends Table {
+  TextColumn get id => text()();
+  TextColumn get receiptId => text().references(Receipts, #id, onDelete: KeyAction.cascade)();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+  TextColumn get fileName => text()();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Budget mensile, totale ([categoryId] nullo) o di una categoria, valido
 /// dal mese [fromMonth] (`AAAA-MM`) in poi, finché una riga più recente non
 /// lo cambia. [amountCents] nullo: da quel mese il budget è tolto. Al più una
@@ -99,7 +113,7 @@ const defaultCategories = [
   ('Altro', '#8E8C9C', 100),
 ];
 
-@DriftDatabase(tables: [Categories, Receipts, ReceiptItems, Settings, Budgets])
+@DriftDatabase(tables: [Categories, Receipts, ReceiptItems, Settings, Budgets, ReceiptPhotos])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
@@ -183,7 +197,7 @@ class AppDatabase extends _$AppDatabase {
   // Ogni modifica allo schema: incrementare latestSchemaVersion, aggiungere
   // un passo in `migration`, poi `dart run drift_dev make-migrations` per
   // salvare lo schema in drift_schemas/ e generare i test di migrazione.
-  static const latestSchemaVersion = 2;
+  static const latestSchemaVersion = 3;
 
   @override
   int get schemaVersion => latestSchemaVersion;
@@ -197,6 +211,8 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (m, from, to) async {
           // v2: budget mensili.
           if (from < 2) await m.createTable(budgets);
+          // v3: foto conservate.
+          if (from < 3) await m.createTable(receiptPhotos);
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');

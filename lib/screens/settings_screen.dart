@@ -26,8 +26,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _backingUp = true);
     try {
       final now = DateTime.now();
-      final bytes = await Backup.create(s.repo, appVersion: versionLabel(), now: now);
-      final saved = await s.files.save(Backup.fileName(now), bytes, 'application/json');
+      final file = await Backup.createFile(s.repo, appVersion: versionLabel(), now: now);
+      final saved = await s.files.save(file.fileName, file.bytes, file.mimeType);
       if (!saved) return;
       await s.config.backupDone(now);
       if (mounted) showSnack(context, 'Backup salvato.');
@@ -73,6 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(Radii.md)),
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Column(children: [
+                  const KeepPhotosSwitch(),
                   _ActionRow(
                     icon: Icons.save_alt,
                     label: 'Crea backup',
@@ -90,8 +91,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: Gap.xs),
               Text(
-                "Il backup è un file che salvi dove vuoi (non contiene la chiave API). Si può ripristinare "
-                "solo al primo avvio, dopo aver reinstallato l'app.",
+                "Il backup è un file che salvi dove vuoi (non contiene la chiave API; con le foto conservate "
+                "è uno ZIP). Si può ripristinare solo al primo avvio, dopo aver reinstallato l'app.",
                 style: AppText.bodySmall.copyWith(color: c.onSurfaceMuted),
               ),
               const SizedBox(height: Gap.xl),

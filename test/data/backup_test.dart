@@ -30,7 +30,8 @@ void main() {
     final text = utf8.decode(backup);
     final json = jsonDecode(text) as Map<String, dynamic>;
     expect(json['format'], 'scontrini-backup');
-    expect(json['version'], 2);
+    expect(json['version'], 3);
+    expect(json['photos'], isEmpty);
     expect((json['budgets'] as List).length, 3);
     expect(json['settings'], {'ai_provider': 'openrouter', 'ai_base_url': '', 'ai_model': 'google/gemini-2.5-flash'});
     expect((json['receipts'] as List).length, 5);

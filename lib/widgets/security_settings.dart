@@ -100,7 +100,7 @@ class _SecuritySettingsState extends State<SecuritySettings> {
           decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(Radii.md)),
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(children: [
-            _SwitchRow(
+            SettingSwitchRow(
               icon: Icons.lock_outline,
               label: 'Blocca con PIN',
               detail: on ? 'PIN di ${_lock.pinLength} cifre' : "Chiesto all'apertura dell'app",
@@ -109,7 +109,7 @@ class _SecuritySettingsState extends State<SecuritySettings> {
             ),
             if (on && !widget.onboarding) _TapRow(icon: Icons.password, label: 'Cambia PIN', onTap: _changePin),
             if (on)
-              _SwitchRow(
+              SettingSwitchRow(
                 icon: Icons.fingerprint,
                 label: "Sblocca con l'impronta",
                 detail: _bioAvailable == null
@@ -129,7 +129,7 @@ class _SecuritySettingsState extends State<SecuritySettings> {
                 onTap: _chooseTimeout,
               ),
             if (on || !widget.onboarding)
-              _SwitchRow(
+              SettingSwitchRow(
                 icon: Icons.visibility_off_outlined,
                 label: 'Nascondi nelle app recenti',
                 detail: 'Impedisce anche gli screenshot',
@@ -143,13 +143,14 @@ class _SecuritySettingsState extends State<SecuritySettings> {
   }
 }
 
-class _SwitchRow extends StatelessWidget {
+/// Riga di impostazione con icona, testo e interruttore.
+class SettingSwitchRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String? detail;
   final bool value;
   final ValueChanged<bool>? onChanged;
-  const _SwitchRow({required this.icon, required this.label, this.detail, required this.value, this.onChanged});
+  const SettingSwitchRow({super.key, required this.icon, required this.label, this.detail, required this.value, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -210,6 +211,58 @@ class _TapRow extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+/// "Conserva le foto degli scontrini": spegnendola chiede se eliminare le
+/// foto già salvate.
+class KeepPhotosSwitch extends StatefulWidget {
+  const KeepPhotosSwitch({super.key});
+
+  @override
+  State<KeepPhotosSwitch> createState() => _KeepPhotosSwitchState();
+}
+
+class _KeepPhotosSwitchState extends State<KeepPhotosSwitch> {
+  Future<void> _toggle(bool on) async {
+    final s = AppScope.read(context);
+    if (!on) {
+      final count = await s.repo.photoCount();
+      if (count > 0 && mounted) {
+        final delete = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(count == 1 ? 'Eliminare la foto già salvata?' : 'Eliminare le $count foto già salvate?'),
+            content: const Text('Le nuove foto non verranno più conservate. Quelle già salvate puoi tenerle '
+                'o eliminarle adesso.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Tienile')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: ctx.colors.error),
+                child: const Text('Elimina'),
+              ),
+            ],
+          ),
+        );
+        if (delete == null) return;
+        if (delete) await s.repo.deleteAllPhotos();
+      }
+    }
+    await s.config.setKeepPhotos(on);
+    s.dataChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keep = AppScope.of(context).config.keepPhotos;
+    return SettingSwitchRow(
+      icon: Icons.photo_library_outlined,
+      label: 'Conserva le foto degli scontrini',
+      detail: 'Solo su questo telefono, utili per resi e garanzie',
+      value: keep,
+      onChanged: _toggle,
     );
   }
 }

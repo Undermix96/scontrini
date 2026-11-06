@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -7,6 +8,7 @@ import 'package:scontrini/ai/ai_client.dart';
 import 'package:scontrini/app_state.dart';
 import 'package:scontrini/config.dart';
 import 'package:scontrini/data/db.dart';
+import 'package:scontrini/data/photos.dart';
 import 'package:scontrini/data/repository.dart';
 import 'package:scontrini/files.dart';
 import 'package:scontrini/lock/biometrics.dart';
@@ -84,7 +86,9 @@ class FakeFiles implements FileGateway {
 class FakeApp {
   final DateTime now;
   final db = memoryDatabase();
-  late final repo = Repository(db, now: () => now);
+  /// Cartella temporanea per le foto conservate, eliminata a fine test.
+  late final photos = PhotoStore(Directory.systemTemp.createTempSync('scontrini_photos_'));
+  late final repo = Repository(db, now: () => now, photos: photos);
   final keys = MemoryKeyStore();
   final ai = FakeAi();
   final files = FakeFiles();

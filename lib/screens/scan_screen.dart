@@ -10,6 +10,7 @@ import '../scan_controller.dart';
 import '../theme/tokens.dart';
 import '../widgets/budget_widgets.dart';
 import '../widgets/common.dart';
+import 'crop_screen.dart';
 import 'manual_entry_screen.dart';
 import 'receipt_screen.dart';
 
@@ -34,8 +35,10 @@ Future<void> startScanFlow(BuildContext context, [ImageSource? source]) async {
     source = choice == NewReceipt.camera ? ImageSource.camera : ImageSource.gallery;
   }
   final picked = await state.lock.suspendWhile(() => ScanController.pick(source!));
-  if (picked == null) return;
-  state.scan.start(picked.$1, picked.$2);
+  if (picked == null || !context.mounted) return;
+  final cropped = await cropPhoto(context, picked.$1, picked.$2, actionLabel: 'Analizza');
+  if (cropped == null) return;
+  state.scan.start(cropped.bytes, cropped.mime);
   await navigator.push(MaterialPageRoute(builder: (_) => const ScanScreen()));
 }
 
@@ -276,7 +279,10 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                 Icon(Icons.verified_user_outlined, size: 16, color: c.onSurfaceMuted),
                 const SizedBox(width: Gap.xs),
                 Flexible(
-                  child: Text('Finita la lettura, la foto viene eliminata.',
+                  child: Text(
+                      AppScope.of(context).config.keepPhotos
+                          ? 'La foto resta solo su questo telefono.'
+                          : 'Finita la lettura, la foto viene eliminata.',
                       style: AppText.bodySmall.copyWith(color: c.onSurfaceMuted)),
                 ),
               ]),

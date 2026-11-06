@@ -109,6 +109,14 @@ class ScanController extends ChangeNotifier {
         await app.repo.deleteReceipt(r.id);
         return;
       }
+      if (app.config.keepPhotos) {
+        try {
+          await app.repo.addPhoto(r.id, j.bytes, mime: j.mime);
+        } catch (e) {
+          // Lo scontrino è salvato comunque: la foto si può aggiungere dopo.
+          debugPrint('Foto non salvata: $e');
+        }
+      }
       j.status = ScanStatus.done;
       j.result = r;
       app.dataChanged();

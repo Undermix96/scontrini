@@ -180,6 +180,15 @@ class Receipt {
   String get displayMerchant => merchant?.trim().isNotEmpty == true ? merchant!.trim() : 'Esercente sconosciuto';
 }
 
+/// Foto conservata di uno scontrino.
+class ReceiptPhoto {
+  final String id;
+  final String receiptId;
+  final int position;
+  final String fileName;
+  const ReceiptPhoto(this.id, this.receiptId, this.position, this.fileName);
+}
+
 /// Spesa presso un esercente in un periodo.
 class MerchantTotal {
   final String name;

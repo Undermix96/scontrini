@@ -9,6 +9,7 @@ import '../theme/tokens.dart';
 import '../warnings.dart';
 import '../widgets/common.dart';
 import '../widgets/item_editor.dart';
+import '../widgets/receipt_photos.dart';
 import '../widgets/warnings.dart';
 
 /// Dettaglio di uno scontrino, con modifica delle righe sul posto.
@@ -302,6 +303,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         ContentWidth(
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _headerCard(r, warnings),
+            ReceiptPhotos(receiptId: r.id),
             const SizedBox(height: 18),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),

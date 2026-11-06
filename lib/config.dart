@@ -49,6 +49,7 @@ class AppConfig {
   static const kModel = 'ai_model';
   static const kSetupDone = 'setup_done';
   static const kLastBackup = 'last_backup_at';
+  static const kKeepPhotos = 'keep_photos';
   static const _kApiKey = 'ai_api_key';
 
   /// Chiavi della vecchia versione con server Supabase.
@@ -66,6 +67,9 @@ class AppConfig {
   bool setupDone = false;
   DateTime? lastBackupAt;
 
+  /// Conservare le foto degli scontrini (facoltativo, spento di default).
+  bool keepPhotos = false;
+
   bool get isConfigured => setupDone && apiKey.isNotEmpty;
 
   AiEndpoint get endpoint => AiEndpoint(provider: provider, baseUrl: baseUrl, model: model, apiKey: apiKey);
@@ -76,6 +80,7 @@ class AppConfig {
     model = await repo.setting(kModel) ?? (provider == AiProvider.openRouter ? defaultOpenRouterModel : '');
     setupDone = await repo.setting(kSetupDone) == 'true';
     lastBackupAt = DateTime.tryParse(await repo.setting(kLastBackup) ?? '')?.toLocal();
+    keepPhotos = await repo.setting(kKeepPhotos) == 'true';
     try {
       apiKey = await keys.read(_kApiKey) ?? '';
       for (final k in _legacyKeys) {
@@ -106,7 +111,7 @@ class AppConfig {
     await keys.write(_kApiKey, apiKey);
   }
 
-  /// Chiave salvata ma primo avvio non ancora concluso (passo "Proteggi l'app").
+  /// Chiave salvata ma primo avvio non ancora concluso (passo "Privacy e sicurezza").
   bool get needsProtectStep => !setupDone && apiKey.isNotEmpty;
 
   /// Fine del primo avvio.
@@ -114,6 +119,11 @@ class AppConfig {
     if (setupDone) return;
     setupDone = true;
     await repo.setSetting(kSetupDone, 'true');
+  }
+
+  Future<void> setKeepPhotos(bool on) async {
+    keepPhotos = on;
+    await repo.setSetting(kKeepPhotos, on ? 'true' : null);
   }
 
   Future<void> backupDone(DateTime at) async {

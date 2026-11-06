@@ -7,6 +7,7 @@ import '../models.dart';
 import '../warnings.dart';
 import 'db.dart';
 import 'ids.dart';
+import 'photos.dart';
 
 /// Errore mostrato all'utente così com'è.
 class DataException implements Exception {
@@ -24,7 +25,10 @@ class Repository {
   /// Orologio sostituibile nei test.
   final DateTime Function() now;
 
-  Repository(this.db, {DateTime Function()? now}) : now = now ?? DateTime.now;
+  /// Foto conservate (null: nessuna cartella, es. in alcuni test).
+  final PhotoStore? photos;
+
+  Repository(this.db, {DateTime Function()? now, this.photos}) : now = now ?? DateTime.now;
 
   int get _nowMs => now().toUtc().millisecondsSinceEpoch;
 
@@ -276,7 +280,86 @@ class Repository {
     return s.length >= 3 ? s.substring(0, 3) : 'EUR';
   }
 
-  Future<void> deleteReceipt(String id) => (db.delete(db.receipts)..where((r) => r.id.equals(id))).go();
+  /// Elimina lo scontrino, le sue righe e le sue foto.
+  Future<void> deleteReceipt(String id) async {
+    final files = [for (final p in await photosOf(id)) p.fileName];
+    await (db.delete(db.receipts)..where((r) => r.id.equals(id))).go();
+    for (final f in files) {
+      await photos?.delete(f);
+    }
+  }
+
+  // ------------------------------------------------------------- foto
+
+  Future<List<ReceiptPhoto>> photosOf(String receiptId) async => [
+        for (final p in await (db.select(db.receiptPhotos)
+              ..where((p) => p.receiptId.equals(receiptId))
+              ..orderBy([(p) => OrderingTerm(expression: p.position), (p) => OrderingTerm(expression: p.createdAt)]))
+            .get())
+          ReceiptPhoto(p.id, p.receiptId, p.position, p.fileName),
+      ];
+
+  Future<int> photoCount() async {
+    final c = db.receiptPhotos.id.count();
+    return (await (db.selectOnly(db.receiptPhotos)..addColumns([c])).getSingle()).read(c) ?? 0;
+  }
+
+  Future<Uint8List?> photoBytes(ReceiptPhoto p) async => photos?.read(p.fileName);
+
+  /// Aggiunge una foto in coda a quelle dello scontrino.
+  Future<ReceiptPhoto> addPhoto(String receiptId, Uint8List bytes, {String mime = 'image/jpeg'}) async {
+    final store = photos;
+    if (store == null) throw DataException('Cartella delle foto non disponibile');
+    final id = newId();
+    final name = '$id.${PhotoStore.extensionFor(mime)}';
+    await store.write(name, bytes);
+    try {
+      return await db.transaction(() async {
+        final last = await db.customSelect(
+          'SELECT MAX(position) AS p FROM receipt_photos WHERE receipt_id = ?',
+          variables: [Variable.withString(receiptId)],
+        ).getSingle();
+        final pos = (last.read<int?>('p') ?? -1) + 1;
+        await db.into(db.receiptPhotos).insert(
+            ReceiptPhotosCompanion.insert(id: id, receiptId: receiptId, position: Value(pos), fileName: name, createdAt: _nowMs));
+        return ReceiptPhoto(id, receiptId, pos, name);
+      });
+    } catch (_) {
+      await store.delete(name);
+      rethrow;
+    }
+  }
+
+  Future<void> deletePhoto(String id) async {
+    final row = await (db.select(db.receiptPhotos)..where((p) => p.id.equals(id))).getSingleOrNull();
+    if (row == null) return;
+    await (db.delete(db.receiptPhotos)..where((p) => p.id.equals(id))).go();
+    await photos?.delete(row.fileName);
+  }
+
+  /// Elimina tutte le foto conservate (quando l'utente spegne l'opzione).
+  Future<void> deleteAllPhotos() async {
+    final rows = await db.select(db.receiptPhotos).get();
+    await db.delete(db.receiptPhotos).go();
+    for (final r in rows) {
+      await photos?.delete(r.fileName);
+    }
+  }
+
+  /// Allinea file e righe: elimina i file senza riga (es. salvataggio
+  /// interrotto) e le righe senza file.
+  Future<void> cleanPhotos() async {
+    final store = photos;
+    if (store == null) return;
+    final rows = await db.select(db.receiptPhotos).get();
+    final files = (await store.list()).toSet();
+    final known = {for (final r in rows) r.fileName};
+    for (final f in files.difference(known)) {
+      await store.delete(f);
+    }
+    final missing = [for (final r in rows) if (!files.contains(r.fileName)) r.id];
+    if (missing.isNotEmpty) await (db.delete(db.receiptPhotos)..where((p) => p.id.isIn(missing))).go();
+  }
 
   /// Ignora gli avvisi indicati per questo scontrino (sostituisce l'elenco).
   Future<Receipt> setDismissedWarnings(String id, List<String> codes) =>

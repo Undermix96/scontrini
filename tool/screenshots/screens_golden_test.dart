@@ -16,6 +16,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:scontrini/ai/ai_client.dart';
 import 'package:scontrini/app_state.dart';
 import 'package:scontrini/main.dart';
+import 'package:scontrini/scan/crop.dart';
+import 'package:scontrini/screens/crop_screen.dart';
 import 'package:scontrini/screens/export_screen.dart';
 import 'package:scontrini/screens/manual_entry_screen.dart';
 import 'package:scontrini/screens/pin_screen.dart';
@@ -60,6 +62,30 @@ Future<AppState> _setup(WidgetTester tester, FakeApp app, Brightness b, {bool co
   await _settle(tester);
   return state;
 }
+
+
+/// Foto finta di uno scontrino storto su un tavolo scuro.
+Future<Uint8List> _fakeReceipt(WidgetTester tester) async => (await tester.runAsync(() async {
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawRect(const Rect.fromLTWH(0, 0, 900, 1200), Paint()..color = const Color(0xFF4A3F38));
+      final path = Path()
+        ..moveTo(240, 140)
+        ..lineTo(690, 190)
+        ..lineTo(640, 1080)
+        ..lineTo(190, 1040)
+        ..close();
+      canvas.drawPath(path, Paint()..color = const Color(0xFFF4F1EA));
+      final ink = Paint()
+        ..color = const Color(0xFF2A2A2A)
+        ..strokeWidth = 7;
+      for (var i = 0; i < 14; i++) {
+        final y = 260.0 + i * 52;
+        canvas.drawLine(Offset(290 - i * 2.5, y), Offset(560 - i * 2.5, y + 6), ink);
+      }
+      final im = await recorder.endRecording().toImage(900, 1200);
+      return (await im.toByteData(format: ImageByteFormat.png))!.buffer.asUint8List();
+    }))!;
 
 void _push(WidgetTester tester, Widget screen) => unawaited(
     tester.state<NavigatorState>(find.byType(Navigator).first).push(MaterialPageRoute<void>(builder: (_) => screen)));
@@ -218,6 +244,37 @@ void main() {
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -200));
       await _settle(tester);
       await _shot('trends_more_$t');
+    });
+
+    testWidgets('crop $t', (tester) async {
+      await _setup(tester, FakeApp(), b);
+      final src = await _fakeReceipt(tester);
+      final preview = (await tester.runAsync(() => makePreview(src)))!;
+      _push(tester, CropScreen(original: src, initial: preview, actionLabel: 'Analizza', moreLabel: 'Aggiungi una parte'));
+      await _settle(tester);
+      await _shot('crop_$t');
+    });
+
+    testWidgets('receipt photos $t', (tester) async {
+      final app = FakeApp();
+      final s = await _setup(tester, app, b);
+      final src = await _fakeReceipt(tester);
+      await tester.runAsync(() async {
+        await s.config.setKeepPhotos(true);
+        final out = (await cropToJpeg(src, (await makePreview(src))!.detected))!;
+        await app.repo.addPhoto('r1', out);
+        await app.repo.addPhoto('r1', out);
+      });
+      await tester.tap(find.text('Esselunga'));
+      await _settle(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await _settle(tester);
+      await _shot('receipt_photos_$t');
+      await tester.tap(find.bySemanticsLabel(RegExp('^Foto 1 di 2')));
+      await _settle(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await _settle(tester);
+      await _shot('photo_viewer_$t');
     });
 
     testWidgets('home $t', (tester) async {

@@ -10,6 +10,8 @@ import 'package:scontrini/app_state.dart';
 import 'package:scontrini/data/backup.dart';
 import 'package:scontrini/format.dart';
 import 'package:scontrini/main.dart';
+import 'package:scontrini/scan/crop.dart';
+import 'package:scontrini/screens/crop_screen.dart';
 import 'package:scontrini/screens/export_screen.dart';
 import 'package:scontrini/screens/manual_entry_screen.dart';
 import 'package:scontrini/screens/pin_screen.dart';
@@ -112,7 +114,7 @@ void main() {
     await _settle(tester);
     expect(app.keys.values.values, contains('sk-or-v1-abc'));
     expect(app.ai.probes.single.provider, AiProvider.openRouter);
-    expect(find.text("Proteggi l'app"), findsOneWidget);
+    expect(find.text('Privacy e sicurezza'), findsOneWidget);
     expect(state.config.isConfigured, isFalse);
     await tester.tap(find.text('Continua senza blocco'));
     await _settle(tester);
@@ -121,7 +123,7 @@ void main() {
     expect(find.byType(HomeShell), findsOneWidget);
   });
 
-  testWidgets("Primo avvio: PIN e impronta nel passo \"Proteggi l'app\"", (tester) async {
+  testWidgets("Primo avvio: PIN e impronta nel passo \"Privacy e sicurezza\"", (tester) async {
     final app = FakeApp();
     final state = await _state(tester, app, configured: false, seeded: false);
     await _pumpApp(tester, state);
@@ -149,7 +151,9 @@ void main() {
     await _typePin(tester, '2580', find.byType(PinEntry));
     expect(state.lock.enabled, isTrue);
     expect(state.lock.secureScreen, isTrue);
+    await tester.scrollUntilVisible(find.text('Non dimenticare il PIN'), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('Non dimenticare il PIN'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text("Sblocca con l'impronta"), -200, scrollable: find.byType(Scrollable).first);
 
     await tester.tap(find.text("Sblocca con l'impronta"));
     await _settle(tester);
@@ -504,6 +508,100 @@ void main() {
     expect(find.byType(ReceiptScreen), findsOneWidget);
     expect(find.text('Latte'), findsOneWidget);
     expect((await tester.runAsync(app.repo.allReceipts))!.length, 6);
+  });
+
+  testWidgets('Foto conservata dopo la lettura, visibile nel dettaglio', (tester) async {
+    final app = FakeApp();
+    app.ai.scanCompleter = Completer<AiScan>();
+    final state = await _state(tester, app);
+    await tester.runAsync(() => state.config.setKeepPhotos(true));
+    await _pumpApp(tester, state);
+    state.scan.start(await _photo(tester), 'image/png');
+    _push(tester, const ScanScreen());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('La foto resta solo su questo telefono.'), findsOneWidget);
+    app.ai.scanCompleter!.complete(AiScan(FakeAi.sampleScan, 'google/gemini-2.5-flash'));
+    await _advance(tester, const Duration(seconds: 2));
+    await _settle(tester);
+    expect(find.byType(ReceiptScreen), findsOneWidget);
+    expect(find.text('1 foto'), findsOneWidget);
+    expect((await tester.runAsync(app.repo.photoCount))!, 1);
+    await tester.runAsync(() => app.photos.dir.delete(recursive: true));
+  });
+
+  testWidgets('Senza "Conserva le foto" la foto non resta', (tester) async {
+    final app = FakeApp();
+    app.ai.scanCompleter = Completer<AiScan>();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    state.scan.start(await _photo(tester), 'image/png');
+    _push(tester, const ScanScreen());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Finita la lettura, la foto viene eliminata.'), findsOneWidget);
+    app.ai.scanCompleter!.complete(AiScan(FakeAi.sampleScan, 'google/gemini-2.5-flash'));
+    await _advance(tester, const Duration(seconds: 2));
+    await _settle(tester);
+    expect(find.byType(ReceiptScreen), findsOneWidget);
+    expect(find.textContaining(' foto'), findsNothing);
+    expect((await tester.runAsync(app.repo.photoCount))!, 0);
+  });
+
+  testWidgets('Impostazioni: spegnere "Conserva le foto" chiede se eliminarle', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await tester.runAsync(() async {
+      await state.config.setKeepPhotos(true);
+      await app.repo.addPhoto('r1', Uint8List.fromList([1, 2, 3]));
+    });
+    await _pumpApp(tester, state);
+    state.setTab(AppTab.settings);
+    await _settle(tester);
+    final row = find.text('Conserva le foto degli scontrini');
+    await _center(tester, row);
+    await tester.tap(row);
+    await _settle(tester);
+    expect(find.text('Eliminare la foto già salvata?'), findsOneWidget);
+    await tester.tap(find.text('Elimina'));
+    await _settle(tester);
+    expect(state.config.keepPhotos, isFalse);
+    expect((await tester.runAsync(app.repo.photoCount))!, 0);
+    await tester.runAsync(() => app.photos.dir.delete(recursive: true));
+  });
+
+  testWidgets('Ritaglio: angoli proposti e foto ritagliata', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    final src = (await tester.runAsync(() async {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawRect(const Rect.fromLTWH(0, 0, 300, 400), Paint()..color = const Color(0xFF3A3430));
+      canvas.drawRect(const Rect.fromLTWH(80, 60, 140, 280), Paint()..color = const Color(0xFFF5F2EB));
+      final im = await recorder.endRecording().toImage(300, 400);
+      return (await im.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
+    }))!;
+    final preview = (await tester.runAsync(() => makePreview(src)))!;
+    expect(preview.detected.first.dx, closeTo(80 / 300, 0.03));
+    CropResult? result;
+    unawaited(tester.state<NavigatorState>(find.byType(Navigator).first).push(MaterialPageRoute<CropResult>(
+        builder: (_) => CropScreen(original: src, initial: preview, actionLabel: 'Analizza'))).then((r) => result = r));
+    await _settle(tester);
+    expect(find.text('Ritaglia lo scontrino'), findsOneWidget);
+    await tester.tap(find.text('Analizza'));
+    for (var i = 0; i < 20 && result == null; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    await _settle(tester);
+    expect(result!.mime, 'image/jpeg');
+    final decoded = (await tester.runAsync(() async {
+      final codec = await ui.instantiateImageCodec(result!.bytes);
+      return (await codec.getNextFrame()).image;
+    }))!;
+    expect(decoded.width, closeTo(140, 6));
+    expect(decoded.height, closeTo(280, 6));
   });
 
   testWidgets('Impostazioni: backup salvato senza chiave API', (tester) async {

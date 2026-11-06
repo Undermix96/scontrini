@@ -176,16 +176,22 @@ class _ProtectStepState extends State<ProtectStep> {
                     const SizedBox(height: Gap.lg),
                     Semantics(
                       header: true,
-                      child: Text("Proteggi l'app", style: AppText.headlineOnboarding.copyWith(color: c.onSurface)),
+                      child: Text("Privacy e sicurezza", style: AppText.headlineOnboarding.copyWith(color: c.onSurface)),
                     ),
                     const SizedBox(height: Gap.xs),
                     Text(
-                      "Facoltativo: puoi bloccare Scontrini con un PIN e, se vuoi, con l'impronta. "
-                      'Puoi cambiare idea in qualsiasi momento dalle impostazioni.',
+                      "Tutto facoltativo: puoi bloccare Scontrini con un PIN e, se vuoi, con l'impronta, e "
+                      'scegliere se conservare le foto. Puoi cambiare idea in qualsiasi momento dalle impostazioni.',
                       style: AppText.body.copyWith(color: c.onSurfaceMuted),
                     ),
                     const SizedBox(height: Gap.xl),
                     const SecuritySettings(onboarding: true),
+                    const SizedBox(height: Gap.md),
+                    Container(
+                      decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(Radii.md)),
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: const KeepPhotosSwitch(),
+                    ),
                     if (lock.enabled) ...[
                       const SizedBox(height: Gap.md),
                       InfoCard(

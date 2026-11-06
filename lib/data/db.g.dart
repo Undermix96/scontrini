@@ -1943,6 +1943,317 @@ class BudgetsCompanion extends UpdateCompanion<BudgetRow> {
   }
 }
 
+class $ReceiptPhotosTable extends ReceiptPhotos
+    with TableInfo<$ReceiptPhotosTable, PhotoRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReceiptPhotosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _receiptIdMeta =
+      const VerificationMeta('receiptId');
+  @override
+  late final GeneratedColumn<String> receiptId = GeneratedColumn<String>(
+      'receipt_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES receipts (id) ON DELETE CASCADE'));
+  static const VerificationMeta _positionMeta =
+      const VerificationMeta('position');
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+      'position', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _fileNameMeta =
+      const VerificationMeta('fileName');
+  @override
+  late final GeneratedColumn<String> fileName = GeneratedColumn<String>(
+      'file_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, receiptId, position, fileName, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'receipt_photos';
+  @override
+  VerificationContext validateIntegrity(Insertable<PhotoRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('receipt_id')) {
+      context.handle(_receiptIdMeta,
+          receiptId.isAcceptableOrUnknown(data['receipt_id']!, _receiptIdMeta));
+    } else if (isInserting) {
+      context.missing(_receiptIdMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(_positionMeta,
+          position.isAcceptableOrUnknown(data['position']!, _positionMeta));
+    }
+    if (data.containsKey('file_name')) {
+      context.handle(_fileNameMeta,
+          fileName.isAcceptableOrUnknown(data['file_name']!, _fileNameMeta));
+    } else if (isInserting) {
+      context.missing(_fileNameMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PhotoRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PhotoRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      receiptId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}receipt_id'])!,
+      position: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}position'])!,
+      fileName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}file_name'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $ReceiptPhotosTable createAlias(String alias) {
+    return $ReceiptPhotosTable(attachedDatabase, alias);
+  }
+}
+
+class PhotoRow extends DataClass implements Insertable<PhotoRow> {
+  final String id;
+  final String receiptId;
+  final int position;
+  final String fileName;
+  final int createdAt;
+  const PhotoRow(
+      {required this.id,
+      required this.receiptId,
+      required this.position,
+      required this.fileName,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['receipt_id'] = Variable<String>(receiptId);
+    map['position'] = Variable<int>(position);
+    map['file_name'] = Variable<String>(fileName);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  ReceiptPhotosCompanion toCompanion(bool nullToAbsent) {
+    return ReceiptPhotosCompanion(
+      id: Value(id),
+      receiptId: Value(receiptId),
+      position: Value(position),
+      fileName: Value(fileName),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory PhotoRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PhotoRow(
+      id: serializer.fromJson<String>(json['id']),
+      receiptId: serializer.fromJson<String>(json['receiptId']),
+      position: serializer.fromJson<int>(json['position']),
+      fileName: serializer.fromJson<String>(json['fileName']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'receiptId': serializer.toJson<String>(receiptId),
+      'position': serializer.toJson<int>(position),
+      'fileName': serializer.toJson<String>(fileName),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  PhotoRow copyWith(
+          {String? id,
+          String? receiptId,
+          int? position,
+          String? fileName,
+          int? createdAt}) =>
+      PhotoRow(
+        id: id ?? this.id,
+        receiptId: receiptId ?? this.receiptId,
+        position: position ?? this.position,
+        fileName: fileName ?? this.fileName,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  PhotoRow copyWithCompanion(ReceiptPhotosCompanion data) {
+    return PhotoRow(
+      id: data.id.present ? data.id.value : this.id,
+      receiptId: data.receiptId.present ? data.receiptId.value : this.receiptId,
+      position: data.position.present ? data.position.value : this.position,
+      fileName: data.fileName.present ? data.fileName.value : this.fileName,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PhotoRow(')
+          ..write('id: $id, ')
+          ..write('receiptId: $receiptId, ')
+          ..write('position: $position, ')
+          ..write('fileName: $fileName, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, receiptId, position, fileName, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PhotoRow &&
+          other.id == this.id &&
+          other.receiptId == this.receiptId &&
+          other.position == this.position &&
+          other.fileName == this.fileName &&
+          other.createdAt == this.createdAt);
+}
+
+class ReceiptPhotosCompanion extends UpdateCompanion<PhotoRow> {
+  final Value<String> id;
+  final Value<String> receiptId;
+  final Value<int> position;
+  final Value<String> fileName;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const ReceiptPhotosCompanion({
+    this.id = const Value.absent(),
+    this.receiptId = const Value.absent(),
+    this.position = const Value.absent(),
+    this.fileName = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ReceiptPhotosCompanion.insert({
+    required String id,
+    required String receiptId,
+    this.position = const Value.absent(),
+    required String fileName,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        receiptId = Value(receiptId),
+        fileName = Value(fileName),
+        createdAt = Value(createdAt);
+  static Insertable<PhotoRow> custom({
+    Expression<String>? id,
+    Expression<String>? receiptId,
+    Expression<int>? position,
+    Expression<String>? fileName,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (receiptId != null) 'receipt_id': receiptId,
+      if (position != null) 'position': position,
+      if (fileName != null) 'file_name': fileName,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ReceiptPhotosCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? receiptId,
+      Value<int>? position,
+      Value<String>? fileName,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return ReceiptPhotosCompanion(
+      id: id ?? this.id,
+      receiptId: receiptId ?? this.receiptId,
+      position: position ?? this.position,
+      fileName: fileName ?? this.fileName,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (receiptId.present) {
+      map['receipt_id'] = Variable<String>(receiptId.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (fileName.present) {
+      map['file_name'] = Variable<String>(fileName.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReceiptPhotosCompanion(')
+          ..write('id: $id, ')
+          ..write('receiptId: $receiptId, ')
+          ..write('position: $position, ')
+          ..write('fileName: $fileName, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1951,12 +2262,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ReceiptItemsTable receiptItems = $ReceiptItemsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $BudgetsTable budgets = $BudgetsTable(this);
+  late final $ReceiptPhotosTable receiptPhotos = $ReceiptPhotosTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [categories, receipts, receiptItems, settings, budgets];
+      [categories, receipts, receiptItems, settings, budgets, receiptPhotos];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
         [
@@ -1986,6 +2298,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
                 limitUpdateKind: UpdateKind.delete),
             result: [
               TableUpdate('budgets', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('receipts',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('receipt_photos', kind: UpdateKind.delete),
             ],
           ),
         ],
@@ -2373,6 +2692,20 @@ final class $$ReceiptsTableReferences
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: cache));
   }
+
+  static MultiTypedResultKey<$ReceiptPhotosTable, List<PhotoRow>>
+      _receiptPhotosRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.receiptPhotos,
+              aliasName: 'receipts__id__receipt_photos__receipt_id');
+
+  $$ReceiptPhotosTableProcessedTableManager get receiptPhotosRefs {
+    final manager = $$ReceiptPhotosTableTableManager($_db, $_db.receiptPhotos)
+        .filter((f) => f.receiptId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_receiptPhotosRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
 }
 
 class $$ReceiptsTableFilterComposer
@@ -2454,6 +2787,27 @@ class $$ReceiptsTableFilterComposer
             $$ReceiptItemsTableFilterComposer(
               $db: $db,
               $table: $db.receiptItems,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> receiptPhotosRefs(
+      Expression<bool> Function($$ReceiptPhotosTableFilterComposer f) f) {
+    final $$ReceiptPhotosTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.receiptPhotos,
+        getReferencedColumn: (t) => t.receiptId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ReceiptPhotosTableFilterComposer(
+              $db: $db,
+              $table: $db.receiptPhotos,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -2616,6 +2970,27 @@ class $$ReceiptsTableAnnotationComposer
             ));
     return f(composer);
   }
+
+  Expression<T> receiptPhotosRefs<T extends Object>(
+      Expression<T> Function($$ReceiptPhotosTableAnnotationComposer a) f) {
+    final $$ReceiptPhotosTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.receiptPhotos,
+        getReferencedColumn: (t) => t.receiptId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ReceiptPhotosTableAnnotationComposer(
+              $db: $db,
+              $table: $db.receiptPhotos,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 }
 
 class $$ReceiptsTableTableManager extends RootTableManager<
@@ -2629,7 +3004,8 @@ class $$ReceiptsTableTableManager extends RootTableManager<
     $$ReceiptsTableUpdateCompanionBuilder,
     (ReceiptRow, $$ReceiptsTableReferences),
     ReceiptRow,
-    PrefetchHooks Function({bool duplicateOf, bool receiptItemsRefs})> {
+    PrefetchHooks Function(
+        {bool duplicateOf, bool receiptItemsRefs, bool receiptPhotosRefs})> {
   $$ReceiptsTableTableManager(_$AppDatabase db, $ReceiptsTable table)
       : super(TableManagerState(
           db: db,
@@ -2711,10 +3087,15 @@ class $$ReceiptsTableTableManager extends RootTableManager<
                   ))
               .toList(),
           prefetchHooksCallback: (
-              {duplicateOf = false, receiptItemsRefs = false}) {
+              {duplicateOf = false,
+              receiptItemsRefs = false,
+              receiptPhotosRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (receiptItemsRefs) db.receiptItems],
+              explicitlyWatchedTables: [
+                if (receiptItemsRefs) db.receiptItems,
+                if (receiptPhotosRefs) db.receiptPhotos
+              ],
               addJoins: <
                   T extends TableManagerState<
                       dynamic,
@@ -2754,6 +3135,18 @@ class $$ReceiptsTableTableManager extends RootTableManager<
                                 .receiptItemsRefs,
                         currentColumn: 'id',
                         referencedColumn: 'receipt_id',
+                        typedResults: items),
+                  if (receiptPhotosRefs)
+                    await $_getPrefetchedDataByColumns<ReceiptRow,
+                            $ReceiptsTable, PhotoRow, $ReceiptPhotosTable>(
+                        currentTable: table,
+                        referencedTable: $$ReceiptsTableReferences
+                            ._receiptPhotosRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$ReceiptsTableReferences(db, table, p0)
+                                .receiptPhotosRefs,
+                        currentColumn: 'id',
+                        referencedColumn: 'receipt_id',
                         typedResults: items)
                 ];
               },
@@ -2773,7 +3166,8 @@ typedef $$ReceiptsTableProcessedTableManager = ProcessedTableManager<
     $$ReceiptsTableUpdateCompanionBuilder,
     (ReceiptRow, $$ReceiptsTableReferences),
     ReceiptRow,
-    PrefetchHooks Function({bool duplicateOf, bool receiptItemsRefs})>;
+    PrefetchHooks Function(
+        {bool duplicateOf, bool receiptItemsRefs, bool receiptPhotosRefs})>;
 typedef $$ReceiptItemsTableCreateCompanionBuilder = ReceiptItemsCompanion
     Function({
   required String id,
@@ -3575,6 +3969,281 @@ typedef $$BudgetsTableProcessedTableManager = ProcessedTableManager<
     (BudgetRow, $$BudgetsTableReferences),
     BudgetRow,
     PrefetchHooks Function({bool categoryId})>;
+typedef $$ReceiptPhotosTableCreateCompanionBuilder = ReceiptPhotosCompanion
+    Function({
+  required String id,
+  required String receiptId,
+  Value<int> position,
+  required String fileName,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$ReceiptPhotosTableUpdateCompanionBuilder = ReceiptPhotosCompanion
+    Function({
+  Value<String> id,
+  Value<String> receiptId,
+  Value<int> position,
+  Value<String> fileName,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+final class $$ReceiptPhotosTableReferences
+    extends BaseReferences<_$AppDatabase, $ReceiptPhotosTable, PhotoRow> {
+  $$ReceiptPhotosTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $ReceiptsTable _receiptIdTable(_$AppDatabase db) =>
+      db.receipts.createAlias('receipt_photos__receipt_id__receipts__id');
+
+  $$ReceiptsTableProcessedTableManager get receiptId {
+    final $_column = $_itemColumn<String>('receipt_id')!;
+
+    final manager = $$ReceiptsTableTableManager($_db, $_db.receipts)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_receiptIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$ReceiptPhotosTableFilterComposer
+    extends Composer<_$AppDatabase, $ReceiptPhotosTable> {
+  $$ReceiptPhotosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get position => $composableBuilder(
+      column: $table.position, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get fileName => $composableBuilder(
+      column: $table.fileName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  $$ReceiptsTableFilterComposer get receiptId {
+    final $$ReceiptsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.receiptId,
+        referencedTable: $db.receipts,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ReceiptsTableFilterComposer(
+              $db: $db,
+              $table: $db.receipts,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ReceiptPhotosTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReceiptPhotosTable> {
+  $$ReceiptPhotosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get position => $composableBuilder(
+      column: $table.position, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get fileName => $composableBuilder(
+      column: $table.fileName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  $$ReceiptsTableOrderingComposer get receiptId {
+    final $$ReceiptsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.receiptId,
+        referencedTable: $db.receipts,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ReceiptsTableOrderingComposer(
+              $db: $db,
+              $table: $db.receipts,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ReceiptPhotosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReceiptPhotosTable> {
+  $$ReceiptPhotosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get fileName =>
+      $composableBuilder(column: $table.fileName, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$ReceiptsTableAnnotationComposer get receiptId {
+    final $$ReceiptsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.receiptId,
+        referencedTable: $db.receipts,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ReceiptsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.receipts,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ReceiptPhotosTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ReceiptPhotosTable,
+    PhotoRow,
+    $$ReceiptPhotosTableFilterComposer,
+    $$ReceiptPhotosTableOrderingComposer,
+    $$ReceiptPhotosTableAnnotationComposer,
+    $$ReceiptPhotosTableCreateCompanionBuilder,
+    $$ReceiptPhotosTableUpdateCompanionBuilder,
+    (PhotoRow, $$ReceiptPhotosTableReferences),
+    PhotoRow,
+    PrefetchHooks Function({bool receiptId})> {
+  $$ReceiptPhotosTableTableManager(_$AppDatabase db, $ReceiptPhotosTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReceiptPhotosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReceiptPhotosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ReceiptPhotosTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> receiptId = const Value.absent(),
+            Value<int> position = const Value.absent(),
+            Value<String> fileName = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ReceiptPhotosCompanion(
+            id: id,
+            receiptId: receiptId,
+            position: position,
+            fileName: fileName,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String receiptId,
+            Value<int> position = const Value.absent(),
+            required String fileName,
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ReceiptPhotosCompanion.insert(
+            id: id,
+            receiptId: receiptId,
+            position: position,
+            fileName: fileName,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable<$ReceiptPhotosTable, PhotoRow>(table),
+                    $$ReceiptPhotosTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({receiptId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (receiptId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.receiptId,
+                    referencedTable:
+                        $$ReceiptPhotosTableReferences._receiptIdTable(db),
+                    referencedColumn:
+                        $$ReceiptPhotosTableReferences._receiptIdTable(db).id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$ReceiptPhotosTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ReceiptPhotosTable,
+    PhotoRow,
+    $$ReceiptPhotosTableFilterComposer,
+    $$ReceiptPhotosTableOrderingComposer,
+    $$ReceiptPhotosTableAnnotationComposer,
+    $$ReceiptPhotosTableCreateCompanionBuilder,
+    $$ReceiptPhotosTableUpdateCompanionBuilder,
+    (PhotoRow, $$ReceiptPhotosTableReferences),
+    PhotoRow,
+    PrefetchHooks Function({bool receiptId})>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3589,4 +4258,6 @@ class $AppDatabaseManager {
       $$SettingsTableTableManager(_db, _db.settings);
   $$BudgetsTableTableManager get budgets =>
       $$BudgetsTableTableManager(_db, _db.budgets);
+  $$ReceiptPhotosTableTableManager get receiptPhotos =>
+      $$ReceiptPhotosTableTableManager(_db, _db.receiptPhotos);
 }

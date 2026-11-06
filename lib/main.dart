@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app_state.dart';
 import 'config.dart';
 import 'data/db.dart';
+import 'data/photos.dart';
 import 'data/repository.dart';
 import 'scan_controller.dart';
 import 'screens/categories_screen.dart';
@@ -24,7 +25,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('it_IT');
   final db = await AppDatabase.open();
-  final config = AppConfig(Repository(db));
+  final repo = Repository(db, photos: await PhotoStore.open());
+  // Foto senza scontrino (salvataggio interrotto) o scontrini senza file.
+  repo.cleanPhotos().catchError((Object e) => debugPrint('Pulizia delle foto non riuscita: $e'));
+  final config = AppConfig(repo);
   await config.load();
   final state = AppState(config);
   await state.lock.load();
