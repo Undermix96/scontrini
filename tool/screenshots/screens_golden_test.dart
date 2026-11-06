@@ -204,6 +204,22 @@ void main() {
       await _shot('budget_sheet_$t');
     });
 
+    testWidgets('trends $t', (tester) async {
+      final app = FakeApp();
+      final s = await _setup(tester, app, b);
+      await tester.runAsync(() => app.repo.setBudget(null, DateTime(DateTime.now().year, DateTime.now().month), 150));
+      s.dataChanged();
+      s.setTab(AppTab.stats);
+      await _settle(tester);
+      await tester.scrollUntilVisible(find.text('Ultimi 12 mesi'), 300, scrollable: find.byType(Scrollable).first);
+      await _settle(tester);
+      await _shot('trends_bars_$t');
+      await tester.scrollUntilVisible(find.text('Dove spendi di più'), 300, scrollable: find.byType(Scrollable).first);
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -200));
+      await _settle(tester);
+      await _shot('trends_more_$t');
+    });
+
     testWidgets('home $t', (tester) async {
       await _setup(tester, FakeApp(), b);
       await _shot('home_$t');

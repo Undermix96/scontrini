@@ -180,6 +180,14 @@ class Receipt {
   String get displayMerchant => merchant?.trim().isNotEmpty == true ? merchant!.trim() : 'Esercente sconosciuto';
 }
 
+/// Spesa presso un esercente in un periodo.
+class MerchantTotal {
+  final String name;
+  final double total;
+  final int receipts;
+  const MerchantTotal(this.name, this.total, this.receipts);
+}
+
 class CategoryTotal {
   final int? categoryId;
   final double total;

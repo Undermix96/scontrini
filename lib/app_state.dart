@@ -97,11 +97,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Apre Movimenti su un mese e, se indicata, su una categoria (da Spese).
-  void openMovements({required DateTime month, int? categoryId}) {
+  /// Apre Movimenti su un mese e, se indicate, su una categoria o una
+  /// ricerca (da Spese).
+  void openMovements({required DateTime month, int? categoryId, String query = ''}) {
     movementsMonth = monthStart(month);
     movementsCategory = categoryId;
-    movementsQuery = '';
+    movementsQuery = query;
     tab = AppTab.movements;
     notifyListeners();
   }

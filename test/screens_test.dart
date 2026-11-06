@@ -60,6 +60,13 @@ void _push(WidgetTester tester, Widget screen) => unawaited(
     tester.state<NavigatorState>(find.byType(Navigator).first).push(MaterialPageRoute<void>(builder: (_) => screen)));
 
 /// Digita un PIN sul tastierino dentro [scope].
+/// Porta [f] a metà schermo (sopra la barra di navigazione fluttuante).
+Future<void> _center(WidgetTester tester, Finder f) async {
+  await tester.scrollUntilVisible(f, 300, scrollable: find.byType(Scrollable).first);
+  unawaited(Scrollable.ensureVisible(tester.element(f), alignment: 0.5));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _typePin(WidgetTester tester, String pin, Finder scope) async {
   for (final d in pin.split('')) {
     await tester.tap(find.descendant(of: scope, matching: find.text(d)));
@@ -409,6 +416,37 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Salva'));
     await _settle(tester);
     expect(find.text('Budget del mese superato.'), findsOneWidget);
+  });
+
+  testWidgets('Spese: esercente apre Movimenti con la ricerca', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    state.setTab(AppTab.stats);
+    await _settle(tester);
+    expect(find.text('Ultimi 12 mesi'), findsOneWidget);
+    final merchant = find.bySemanticsLabel(RegExp(r'^Farmacia Comunale,'));
+    await _center(tester, merchant);
+    await tester.tap(merchant);
+    await _settle(tester);
+    expect(state.tab, AppTab.movements);
+    expect(state.movementsQuery, 'Farmacia Comunale');
+    expect(find.text('Esselunga'), findsNothing);
+  });
+
+  testWidgets('Spese: le barre si filtrano per categoria', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    state.setTab(AppTab.stats);
+    await _settle(tester);
+    final chip = find.bySemanticsLabel(RegExp('^Categoria del grafico'));
+    await _center(tester, chip);
+    await tester.tap(chip);
+    await _settle(tester);
+    await tester.tap(find.text('Salute').last);
+    await _settle(tester);
+    expect(find.bySemanticsLabel(RegExp('^Categoria del grafico: Salute')), findsOneWidget);
   });
 
   testWidgets('Dettaglio: banner del totale e riga espandibile', (tester) async {

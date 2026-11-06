@@ -10,6 +10,7 @@ import '../widgets/common.dart';
 import '../widgets/donut_chart.dart';
 import '../widgets/floating_nav_bar.dart';
 import '../widgets/month_selector.dart';
+import '../widgets/trend_charts.dart';
 
 /// Scheda Spese: spese del mese per categoria.
 class StatsScreen extends StatefulWidget {
@@ -24,6 +25,18 @@ class _StatsScreenState extends State<StatsScreen> {
   List<CategoryTotal>? _totals;
   double? _previous;
   MonthBudget _budget = const MonthBudget();
+
+  // Andamento: 12 mesi fino a quello selezionato (eventualmente di una sola
+  // categoria), giorni del mese e del precedente, esercenti.
+  static const _months = 12;
+  int? _focus;
+  List<double>? _monthly;
+  List<double?> _monthlyBudgets = const [];
+  List<double>? _daily;
+  List<double>? _prevDaily;
+  List<MerchantTotal> _merchants = const [];
+
+  DateTime get _firstMonth => DateTime(_month.year, _month.month - _months + 1);
   String? _error;
   int _seen = -1;
   int _request = 0;
@@ -50,12 +63,26 @@ class _StatsScreenState extends State<StatsScreen> {
         s.repo.stats(from: monthStart(prev), to: monthEnd(prev)),
       ]);
       final budget = await s.repo.budgetFor(_month);
+      final focus = _focus;
+      final monthly = await s.repo.monthlyTotals(_firstMonth, _months, categoryId: focus);
+      final entries = await s.repo.budgetEntries();
+      final daily = await s.repo.dailyTotals(_month);
+      final prevDaily = await s.repo.dailyTotals(prev);
+      final merchants = await s.repo.merchantTotals(monthStart(_month), monthEnd(_month));
       if (!mounted || id != _request) return;
       final t = res[0]..sort((a, b) => b.total.compareTo(a.total));
       setState(() {
         _totals = t;
         _previous = res[1].fold<double>(0, (sum, x) => sum + x.total);
         _budget = budget;
+        _monthly = monthly;
+        _monthlyBudgets = [
+          for (var i = 0; i < _months; i++)
+            resolveBudget(entries, DateTime(_firstMonth.year, _firstMonth.month + i)).of(focus),
+        ];
+        _daily = daily;
+        _prevDaily = prevDaily;
+        _merchants = merchants;
       });
     } catch (e) {
       if (mounted && id == _request) setState(() => _error = '$e');
@@ -67,6 +94,7 @@ class _StatsScreenState extends State<StatsScreen> {
       _month = m;
       _totals = null;
       _previous = null;
+      _monthly = null;
     });
     _load();
   }
@@ -122,6 +150,18 @@ class _StatsScreenState extends State<StatsScreen> {
                     const SizedBox(height: Gap.md),
                     _list(s, c, totals),
                   ],
+                  if (_monthly != null) ...[
+                    const SizedBox(height: Gap.md),
+                    _barsCard(s, c),
+                  ],
+                  if (totals.isNotEmpty && _daily != null && _prevDaily != null) ...[
+                    const SizedBox(height: Gap.md),
+                    _cumulativeCard(c),
+                  ],
+                  if (_merchants.isNotEmpty) ...[
+                    const SizedBox(height: Gap.md),
+                    _merchantsCard(s, c),
+                  ],
                 ],
               ]),
             ),
@@ -130,6 +170,155 @@ class _StatsScreenState extends State<StatsScreen> {
       ),
     );
   }
+
+  Widget _card(ScontriniColors c, String title, Widget child, {Widget? trailing}) => Container(
+        padding: const EdgeInsets.fromLTRB(Gap.lg, Gap.md, Gap.lg, Gap.lg),
+        decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(Radii.lg)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: Text(title, style: AppText.titleSmall.copyWith(color: c.onSurface)),
+              ),
+            ),
+            if (trailing != null) trailing,
+          ]),
+          const SizedBox(height: Gap.sm),
+          child,
+        ]),
+      );
+
+  Future<void> _chooseFocus(AppState s) async {
+    final c = context.colors;
+    final chosen = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: ListView(shrinkWrap: true, children: [
+          for (final (id, name, color) in [
+            (-1, 'Tutte le categorie', c.primary),
+            for (final cat in s.categories) (cat.id, cat.name, cat.colorValue),
+          ])
+            ListTile(
+              minTileHeight: 52,
+              contentPadding: const EdgeInsets.symmetric(horizontal: Gap.gutter),
+              leading: CategoryDot(color: color, size: 12),
+              title: Text(name, style: AppText.titleSmall.copyWith(color: c.onSurface)),
+              trailing: (id == -1 ? _focus == null : _focus == id) ? Icon(Icons.check, color: c.primary) : null,
+              onTap: () => Navigator.pop(ctx, id),
+            ),
+        ]),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    setState(() {
+      _focus = chosen == -1 ? null : chosen;
+      _monthly = null;
+    });
+    _load();
+  }
+
+  Widget _barsCard(AppState s, ScontriniColors c) {
+    final focus = s.category(_focus);
+    final months = [for (var i = 0; i < _months; i++) DateTime(_firstMonth.year, _firstMonth.month + i)];
+    return _card(
+      c,
+      'Ultimi 12 mesi',
+      trailing: Semantics(
+        button: true,
+        label: 'Categoria del grafico: ${focus?.name ?? 'tutte'}. Cambia',
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: () => _chooseFocus(s),
+          borderRadius: BorderRadius.circular(Radii.pill),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: Sizes.touch),
+            padding: const EdgeInsets.symmetric(horizontal: Gap.sm),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (focus != null) ...[CategoryDot(color: focus.colorValue, size: 10), const SizedBox(width: 6)],
+              Text(focus?.name ?? 'Tutte', style: AppText.label.copyWith(color: c.primary)),
+              Icon(Icons.expand_more, size: 18, color: c.primary),
+            ]),
+          ),
+        ),
+      ),
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        MonthlyBarsChart(
+          months: months,
+          values: _monthly!,
+          budgets: _monthlyBudgets,
+          selected: _months - 1,
+          color: focus?.colorValue ?? c.primary,
+          onSelect: (i) {
+            if (i != _months - 1) _setMonth(months[i]);
+          },
+        ),
+        const SizedBox(height: Gap.xs),
+        Text(
+          'Tratteggio: media dei mesi${_monthlyBudgets.any((b) => b != null) ? '. Trattino: budget del mese' : ''}. '
+          'Tocca una barra per vedere quel mese.',
+          style: AppText.badge.copyWith(color: c.onSurfaceMuted, fontWeight: FontWeight.w600),
+        ),
+      ]),
+    );
+  }
+
+  Widget _cumulativeCard(ScontriniColors c) {
+    final now = DateTime.now();
+    final current = monthStart(now);
+    final days = _daily!.length;
+    final shown = _month == current ? now.day.clamp(1, days) : (_month.isAfter(current) ? 0 : days);
+    final prev = DateTime(_month.year, _month.month - 1);
+    String cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+    return _card(
+      c,
+      'Andamento del mese',
+      CumulativeChart(
+        current: _daily!,
+        previous: _prevDaily!,
+        currentDays: shown,
+        budget: _budget.total,
+        color: c.primary,
+        currentLabel: cap(monthName(_month)),
+        previousLabel: cap(monthName(prev)),
+      ),
+    );
+  }
+
+  Widget _merchantsCard(AppState s, ScontriniColors c) => _card(
+        c,
+        'Dove spendi di più',
+        Column(children: [
+          for (final m in _merchants)
+            Semantics(
+              button: true,
+              label: '${m.name}, ${moneySpoken(m.total)}, ${m.receipts == 1 ? '1 scontrino' : '${m.receipts} scontrini'}. '
+                  'Mostra i movimenti',
+              excludeSemantics: true,
+              child: InkWell(
+                onTap: () => s.openMovements(month: _month, query: m.name),
+                borderRadius: BorderRadius.circular(Radii.sm),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Gap.xs),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(m.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.titleSmall.copyWith(color: c.onSurface)),
+                        Text(m.receipts == 1 ? '1 scontrino' : '${m.receipts} scontrini',
+                            style: AppText.bodySmall.copyWith(color: c.onSurfaceMuted)),
+                      ]),
+                    ),
+                    Text(money(m.total), style: AppText.amountSmall.copyWith(color: c.onSurface)),
+                  ]),
+                ),
+              ),
+            ),
+        ]),
+      );
 
   /// Il budget si modifica dal mese corrente in poi: quelli passati restano com'erano.
   bool get _editable => !_month.isBefore(monthStart(DateTime.now()));

@@ -362,6 +362,79 @@ class Repository {
     return [for (final r in rows) CategoryTotal(r.read<int?>('c'), _eur(r.read<int>('t')))];
   }
 
+  // ------------------------------------------------------------- andamento
+
+  /// Righe (data d'acquisto locale, importo in centesimi, categoria, scontrino)
+  /// degli scontrini con data in [from, to).
+  Future<List<({DateTime at, int cents, int? categoryId, String receiptId})>> _itemsIn(DateTime from, DateTime to) async {
+    final rows = await db.customSelect(
+      'SELECT r.id AS r, r.purchased_at AS p, i.total_cents AS t, i.category_id AS c FROM receipt_items i '
+      'JOIN receipts r ON r.id = i.receipt_id WHERE r.purchased_at >= ? AND r.purchased_at < ?',
+      variables: [Variable.withInt(_ms(from)), Variable.withInt(_ms(to))],
+      readsFrom: {db.receipts, db.receiptItems},
+    ).get();
+    return [
+      for (final r in rows)
+        (
+          at: DateTime.fromMillisecondsSinceEpoch(r.read<int>('p'), isUtc: true).toLocal(),
+          cents: r.read<int>('t'),
+          categoryId: r.read<int?>('c'),
+          receiptId: r.read<String>('r'),
+        ),
+    ];
+  }
+
+  /// Spesa di [count] mesi a partire da [firstMonth] (somma delle righe, nel
+  /// fuso del telefono), eventualmente di una sola categoria.
+  Future<List<double>> monthlyTotals(DateTime firstMonth, int count, {int? categoryId}) async {
+    final from = DateTime(firstMonth.year, firstMonth.month);
+    final to = DateTime(from.year, from.month + count);
+    final out = List<int>.filled(count, 0);
+    for (final i in await _itemsIn(from, to)) {
+      if (categoryId != null && i.categoryId != categoryId) continue;
+      final idx = (i.at.year - from.year) * 12 + i.at.month - from.month;
+      if (idx >= 0 && idx < count) out[idx] += i.cents;
+    }
+    return [for (final c in out) _eur(c)];
+  }
+
+  /// Spesa giorno per giorno del mese (indice 0 = giorno 1).
+  Future<List<double>> dailyTotals(DateTime month, {int? categoryId}) async {
+    final from = DateTime(month.year, month.month);
+    final to = DateTime(month.year, month.month + 1);
+    final days = DateTime(month.year, month.month + 1, 0).day;
+    final out = List<int>.filled(days, 0);
+    for (final i in await _itemsIn(from, to)) {
+      if (categoryId != null && i.categoryId != categoryId) continue;
+      final d = i.at.day - 1;
+      if (d >= 0 && d < days) out[d] += i.cents;
+    }
+    return [for (final c in out) _eur(c)];
+  }
+
+  /// Esercenti del periodo per spesa (somma delle righe), il più caro per
+  /// primo. Nomi raggruppati senza distinguere maiuscole e spazi, mostrati
+  /// come nello scontrino più recente.
+  Future<List<MerchantTotal>> merchantTotals(DateTime from, DateTime to, {int limit = 5}) async {
+    final rows = await db.customSelect(
+      'SELECT r.id AS id, r.merchant AS m, COALESCE(SUM(i.total_cents), 0) AS t FROM receipts r '
+      'LEFT JOIN receipt_items i ON i.receipt_id = r.id '
+      'WHERE r.purchased_at >= ? AND r.purchased_at < ? GROUP BY r.id ORDER BY r.purchased_at DESC',
+      variables: [Variable.withInt(_ms(from)), Variable.withInt(_ms(to))],
+      readsFrom: {db.receipts, db.receiptItems},
+    ).get();
+    final groups = <String, ({String name, int cents, int count})>{};
+    for (final r in rows) {
+      final name = (r.read<String?>('m') ?? '').trim().replaceAll(RegExp(r'\s+'), ' ');
+      if (name.isEmpty) continue;
+      final key = name.toLowerCase();
+      final g = groups[key];
+      groups[key] = (name: g?.name ?? name, cents: (g?.cents ?? 0) + r.read<int>('t'), count: (g?.count ?? 0) + 1);
+    }
+    final list = groups.values.toList()..sort((a, b) => b.cents.compareTo(a.cents));
+    return [for (final g in list.take(limit)) MerchantTotal(g.name, _eur(g.cents), g.count)];
+  }
+
   // ------------------------------------------------------------- budget
 
   Future<List<BudgetEntry>> budgetEntries() async => [
