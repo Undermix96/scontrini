@@ -51,6 +51,8 @@
 		<true/>
 		<key>NSCameraUsageDescription</key>
 		<string>La fotocamera serve per fotografare gli scontrini.</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>Face ID serve per sbloccare l'app, se attivi il blocco.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>L'accesso alle foto serve per scegliere l'immagine di uno scontrino.</string>
 		<key>CFBundleLocalizations</key>

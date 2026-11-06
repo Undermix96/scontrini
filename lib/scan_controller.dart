@@ -54,6 +54,24 @@ class ScanController extends ChangeNotifier {
     return (bytes, mimeFor(picked.name));
   }
 
+  /// Foto scattata mentre Android ha chiuso l'app per mancanza di memoria
+  /// (la fotocamera è un'altra app): al riavvio la si recupera.
+  static Future<(Uint8List, String)?> recoverLost() async {
+    if (kIsWeb || !Platform.isAndroid) return null;
+    try {
+      final lost = await ImagePicker().retrieveLostData();
+      final f = lost.file;
+      if (lost.isEmpty || f == null) return null;
+      final bytes = await f.readAsBytes();
+      try {
+        await File(f.path).delete();
+      } catch (_) {}
+      return (bytes, mimeFor(f.name));
+    } catch (_) {
+      return null;
+    }
+  }
+
   static String mimeFor(String fileName) {
     final name = fileName.toLowerCase();
     if (name.endsWith('.png')) return 'image/png';

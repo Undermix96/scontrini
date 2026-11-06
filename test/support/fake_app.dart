@@ -9,6 +9,7 @@ import 'package:scontrini/config.dart';
 import 'package:scontrini/data/db.dart';
 import 'package:scontrini/data/repository.dart';
 import 'package:scontrini/files.dart';
+import 'package:scontrini/lock/biometrics.dart';
 
 /// Database in memoria via FFI (sqlite3 del sistema di sviluppo, vedi
 /// `hooks` in pubspec.yaml). L'app usa invece sqflite.
@@ -50,6 +51,21 @@ class FakeAi extends AiClient {
   }
 }
 
+class FakeBiometrics implements Biometrics {
+  bool isAvailable = true;
+  bool succeed = true;
+  int prompts = 0;
+
+  @override
+  Future<bool> available() async => isAvailable;
+
+  @override
+  Future<bool> authenticate(String reason) async {
+    prompts++;
+    return succeed;
+  }
+}
+
 class FakeFiles implements FileGateway {
   final saved = <String, Uint8List>{};
   Uint8List? toOpen;
@@ -72,6 +88,7 @@ class FakeApp {
   final keys = MemoryKeyStore();
   final ai = FakeAi();
   final files = FakeFiles();
+  final biometrics = FakeBiometrics();
 
   FakeApp({DateTime? now}) : now = now ?? DateTime.now() {
     // Ogni test crea il proprio database in memoria: è voluto.
@@ -146,9 +163,12 @@ class FakeApp {
     if (configured) {
       await config.save(const AiEndpoint(
           provider: AiProvider.openRouter, model: defaultOpenRouterModel, apiKey: 'sk-or-test-key'));
+      await config.finishSetup();
     }
     await config.load();
-    return AppState(config, ai: ai, files: files);
+    final state = AppState(config, ai: ai, files: files, biometrics: biometrics, pinIterations: 10);
+    await state.lock.load();
+    return state;
   }
 
   /// Contenuto di un file salvato, come testo.

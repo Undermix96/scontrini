@@ -23,6 +23,7 @@ App Flutter ──(HTTPS, la tua chiave)──▶ OpenRouter o servizio compatib
 - **Aggiornamenti dello schema**: migrazioni versionate (`schemaVersion` in `lib/data/db.dart`), con gli schemi salvati in `drift_schemas/` e test di migrazione generati. Prima di ogni migrazione l'app salva una copia del file del database (`scontrini.pre-upgrade.sqlite`).
 - **Importi** in centesimi interi, **date** in UTC.
 - **Chiave API**: solo nel Keystore (Android) o nel Keychain (iOS). Non è mai nel binario, nel repository o nei backup.
+- **Blocco dell'app (facoltativo)**: PIN di 4–8 cifre salvato solo come hash PBKDF2-HMAC-SHA256 con salt nel Keystore/Keychain, attese crescenti dopo 5 errori; impronta o Face ID con le API di sistema ([local_auth](https://pub.dev/packages/local_auth), BiometricPrompt di AndroidX, niente Play Services), sempre con il PIN come riserva. Si riblocca dopo il tempo scelto fuori dall'app (default 1 minuto); il tempo passato in fotocamera, galleria o selettore di file non conta. Facoltativo anche lo schermo sicuro (`FLAG_SECURE` su Android, sfocatura nelle app recenti su iOS), acceso di default insieme al blocco. Le impostazioni del blocco non entrano nel backup.
 - **Backup di sistema disattivato**: su Android `allowBackup="false"` e regole di estrazione che escludono backup su cloud e trasferimento a un nuovo telefono; su iOS la cartella del database è esclusa dal backup iCloud. I dati escono dal telefono solo con il backup manuale dell'app.
 
 ## Primo avvio
@@ -31,6 +32,8 @@ Al primo avvio scegli:
 
 1. **Inizia**: scegli il servizio AI, il modello e incolla la chiave, poi *Verifica e inizia*. La configurazione viene salvata solo se la chiave funziona.
 2. **Ripristina da un backup**: scegli un file di backup; poi inserisci la chiave (che il backup non contiene).
+
+Poi il passo **Proteggi l'app**, facoltativo: PIN, impronta e "Nascondi nelle app recenti". Si può saltare e cambiare in seguito da *Impostazioni → Sicurezza*.
 
 Servizi supportati:
 

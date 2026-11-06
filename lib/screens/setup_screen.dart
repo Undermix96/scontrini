@@ -7,10 +7,13 @@ import '../theme/tokens.dart';
 import '../widgets/ai_settings_form.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/common.dart';
+import '../widgets/security_settings.dart';
 
-/// Primo avvio: scegli il servizio AI e inserisci la chiave, oppure
-/// ripristina un backup. Il ripristino è possibile solo qui, finché l'app
-/// non è mai stata configurata e non contiene scontrini.
+/// Primo avvio, in due passi.
+///
+/// 1. Servizio AI e chiave, oppure ripristino di un backup (possibile solo
+///    qui, finché l'app non è mai stata configurata e non contiene scontrini).
+/// 2. "Proteggi l'app" (facoltativo): PIN, impronta, schermo sicuro.
 class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key});
 
@@ -71,6 +74,7 @@ class _SetupScreenState extends State<SetupScreen> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final s = AppScope.of(context);
+    if (s.config.needsProtectStep) return const ProtectStep();
     final restored = _restored;
     final returning = s.config.setupDone || restored != null;
     return Scaffold(
@@ -125,6 +129,83 @@ class _SetupScreenState extends State<SetupScreen> {
             ),
             middle: privacyCard,
             footer: const SourceLink(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Secondo passo del primo avvio: blocco dell'app (facoltativo).
+class ProtectStep extends StatefulWidget {
+  const ProtectStep({super.key});
+
+  @override
+  State<ProtectStep> createState() => _ProtectStepState();
+}
+
+class _ProtectStepState extends State<ProtectStep> {
+  bool _busy = false;
+
+  Future<void> _finish() async {
+    final s = AppScope.read(context);
+    setState(() => _busy = true);
+    try {
+      await s.config.finishSetup();
+      await s.configSaved().catchError((_) {});
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final lock = AppScope.of(context).lock;
+    return Scaffold(
+      body: SafeArea(
+        child: ContentWidth(
+          child: ListenableBuilder(
+            listenable: lock,
+            builder: (context, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(Gap.gutter, Gap.md, Gap.gutter, Gap.lg),
+                  children: [
+                    const Align(alignment: Alignment.centerLeft, child: BrandMark(size: 64)),
+                    const SizedBox(height: Gap.lg),
+                    Semantics(
+                      header: true,
+                      child: Text("Proteggi l'app", style: AppText.headlineOnboarding.copyWith(color: c.onSurface)),
+                    ),
+                    const SizedBox(height: Gap.xs),
+                    Text(
+                      "Facoltativo: puoi bloccare Scontrini con un PIN e, se vuoi, con l'impronta. "
+                      'Puoi cambiare idea in qualsiasi momento dalle impostazioni.',
+                      style: AppText.body.copyWith(color: c.onSurfaceMuted),
+                    ),
+                    const SizedBox(height: Gap.xl),
+                    const SecuritySettings(onboarding: true),
+                    if (lock.enabled) ...[
+                      const SizedBox(height: Gap.md),
+                      InfoCard(
+                        icon: Icons.warning_amber_rounded,
+                        iconColor: c.warning,
+                        title: 'Non dimenticare il PIN',
+                        text: "Non c'è modo di recuperarlo: bisognerebbe reinstallare l'app e ripristinare un backup.",
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Gap.gutter, Gap.xs, Gap.gutter, Gap.md),
+                child: FilledButton(
+                  onPressed: _busy ? null : _finish,
+                  child: _busy ? const SmallSpinner() : Text(lock.enabled ? 'Inizia' : 'Continua senza blocco'),
+                ),
+              ),
+            ]),
           ),
         ),
       ),

@@ -75,3 +75,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Tema AppCompat per la finestra dell'impronta (local_auth) su Android 8
+    // e precedenti. Libreria AndroidX, Apache 2.0.
+    implementation("androidx.appcompat:appcompat:1.7.1")
+}

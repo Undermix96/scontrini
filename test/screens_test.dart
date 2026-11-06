@@ -10,6 +10,7 @@ import 'package:scontrini/app_state.dart';
 import 'package:scontrini/data/backup.dart';
 import 'package:scontrini/main.dart';
 import 'package:scontrini/screens/export_screen.dart';
+import 'package:scontrini/screens/pin_screen.dart';
 import 'package:scontrini/screens/receipt_screen.dart';
 import 'package:scontrini/screens/scan_screen.dart';
 
@@ -56,6 +57,15 @@ Future<AppState> _state(WidgetTester tester, FakeApp app, {bool configured = tru
 void _push(WidgetTester tester, Widget screen) => unawaited(
     tester.state<NavigatorState>(find.byType(Navigator).first).push(MaterialPageRoute<void>(builder: (_) => screen)));
 
+/// Digita un PIN sul tastierino dentro [scope].
+Future<void> _typePin(WidgetTester tester, String pin, Finder scope) async {
+  for (final d in pin.split('')) {
+    await tester.tap(find.descendant(of: scope, matching: find.text(d)));
+    await tester.pump();
+  }
+  await _settle(tester);
+}
+
 void main() {
   setUpAll(() => initializeDateFormatting('it_IT'));
 
@@ -91,10 +101,93 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Verifica e inizia'));
     await _settle(tester);
-    expect(state.config.isConfigured, isTrue);
     expect(app.keys.values.values, contains('sk-or-v1-abc'));
     expect(app.ai.probes.single.provider, AiProvider.openRouter);
+    expect(find.text("Proteggi l'app"), findsOneWidget);
+    expect(state.config.isConfigured, isFalse);
+    await tester.tap(find.text('Continua senza blocco'));
+    await _settle(tester);
+    expect(state.config.isConfigured, isTrue);
+    expect(state.lock.enabled, isFalse);
     expect(find.byType(HomeShell), findsOneWidget);
+  });
+
+  testWidgets("Primo avvio: PIN e impronta nel passo \"Proteggi l'app\"", (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app, configured: false, seeded: false);
+    await _pumpApp(tester, state);
+    await tester.enterText(find.byType(TextField).last, 'sk-or-v1-abc');
+    await tester.pump();
+    await tester.tap(find.text('Verifica e inizia'));
+    await _settle(tester);
+    expect(find.text("Sblocca con l'impronta"), findsNothing);
+
+    await tester.tap(find.text('Blocca con PIN'));
+    await _settle(tester);
+    expect(find.text('Scegli un PIN'), findsOneWidget);
+    await _typePin(tester, '258', find.byType(PinEntry));
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Avanti')).onPressed, isNull,
+        reason: 'almeno 4 cifre');
+    await _typePin(tester, '0', find.byType(PinEntry));
+    await tester.tap(find.text('Avanti'));
+    await _settle(tester);
+    expect(find.text('Conferma il PIN'), findsOneWidget);
+    await _typePin(tester, '1111', find.byType(PinEntry));
+    expect(find.text('I PIN non coincidono: ricomincia.'), findsOneWidget);
+    await _typePin(tester, '2580', find.byType(PinEntry));
+    await tester.tap(find.text('Avanti'));
+    await _settle(tester);
+    await _typePin(tester, '2580', find.byType(PinEntry));
+    expect(state.lock.enabled, isTrue);
+    expect(state.lock.secureScreen, isTrue);
+    expect(find.text('Non dimenticare il PIN'), findsOneWidget);
+
+    await tester.tap(find.text("Sblocca con l'impronta"));
+    await _settle(tester);
+    expect(app.biometrics.prompts, 1);
+    expect(state.lock.biometric, isTrue);
+
+    await tester.tap(find.text('Inizia'));
+    await _settle(tester);
+    expect(state.config.isConfigured, isTrue);
+    expect(find.byType(HomeShell), findsOneWidget);
+    expect(find.byType(LockScreen), findsNothing);
+  });
+
+  testWidgets('Blocco: PIN errato e poi giusto', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await tester.runAsync(() async {
+      await state.lock.setPin('2580');
+      await state.lock.load();
+    });
+    await _pumpApp(tester, state);
+    expect(find.text('Scontrini è bloccato'), findsOneWidget);
+    expect(app.biometrics.prompts, 0, reason: 'impronta non attiva');
+    await _typePin(tester, '1111', find.byType(LockScreen));
+    expect(find.text('PIN errato'), findsOneWidget);
+    await _typePin(tester, '2580', find.byType(LockScreen));
+    expect(find.byType(LockScreen), findsNothing);
+    expect(find.byType(HomeShell), findsOneWidget);
+  });
+
+  testWidgets("Blocco: l'impronta viene proposta subito", (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await tester.runAsync(() async {
+      await state.lock.setPin('2580');
+      await state.lock.setBiometric(true);
+      await state.lock.load();
+    });
+    app.biometrics.succeed = false;
+    await _pumpApp(tester, state);
+    expect(app.biometrics.prompts, 1);
+    expect(find.byType(LockScreen), findsOneWidget);
+    app.biometrics.succeed = true;
+    await tester.tap(find.byIcon(Icons.fingerprint));
+    await _settle(tester);
+    expect(app.biometrics.prompts, 2);
+    expect(find.byType(LockScreen), findsNothing);
   });
 
   testWidgets('Primo avvio: endpoint compatibile senza https', (tester) async {

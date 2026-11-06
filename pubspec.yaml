@@ -25,6 +25,9 @@ dependencies:
   file_picker: ^13.3.2
   pdf: ^3.13.1
   drift_sqflite: ^2.0.1
+  local_auth: ^3.0.2
+  crypto: ^3.0.8
+  local_auth_android: ^2.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

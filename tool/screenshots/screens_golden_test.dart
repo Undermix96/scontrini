@@ -17,6 +17,7 @@ import 'package:scontrini/ai/ai_client.dart';
 import 'package:scontrini/app_state.dart';
 import 'package:scontrini/main.dart';
 import 'package:scontrini/screens/export_screen.dart';
+import 'package:scontrini/screens/pin_screen.dart';
 import 'package:scontrini/screens/receipt_screen.dart';
 import 'package:scontrini/screens/scan_screen.dart';
 
@@ -110,6 +111,57 @@ void main() {
       await _shot('setup_custom_$t');
     });
 
+    testWidgets('protect $t', (tester) async {
+      final s = await _setup(tester, FakeApp(), b, configured: false);
+      await tester.runAsync(() async {
+        await s.config.save(const AiEndpoint(
+            provider: AiProvider.openRouter, model: defaultOpenRouterModel, apiKey: 'sk-or-test-key'));
+        await s.configSaved();
+      });
+      await _settle(tester);
+      await _shot('protect_$t');
+      await tester.runAsync(() async {
+        await s.lock.setPin('2580');
+        await s.lock.setBiometric(true);
+      });
+      await _settle(tester);
+      await _shot('protect_on_$t');
+      await tester.tap(find.text('Blocca con PIN'));
+      await _settle(tester);
+      await _shot('pin_verify_$t');
+    });
+
+    testWidgets('lock $t', (tester) async {
+      final app = FakeApp();
+      app.biometrics.succeed = false;
+      final s = await _setup(tester, app, b);
+      await tester.runAsync(() async {
+        await s.lock.setPin('2580');
+        await s.lock.setBiometric(true);
+        await s.lock.load();
+      });
+      await _settle(tester);
+      await _shot('lock_$t');
+      for (final d in '1111'.split('')) {
+        await tester.tap(find.descendant(of: find.byType(LockScreen), matching: find.text(d)));
+        await tester.pump();
+      }
+      await _settle(tester);
+      await _shot('lock_wrong_$t');
+    });
+
+    testWidgets('pin create $t', (tester) async {
+      await _setup(tester, FakeApp(), b);
+      unawaited(createPin(tester.element(find.byType(HomeShell))));
+      await _settle(tester);
+      for (final d in '25'.split('')) {
+        await tester.tap(find.descendant(of: find.byType(PinEntry), matching: find.text(d)));
+        await tester.pump();
+      }
+      await _settle(tester);
+      await _shot('pin_create_$t');
+    });
+
     testWidgets('home $t', (tester) async {
       await _setup(tester, FakeApp(), b);
       await _shot('home_$t');
@@ -137,6 +189,10 @@ void main() {
       s.setTab(AppTab.settings);
       await _settle(tester);
       await _shot('settings_$t');
+      await tester.runAsync(() => s.lock.setPin('2580'));
+      await tester.ensureVisible(find.text('Sicurezza'));
+      await _settle(tester);
+      await _shot('settings_security_$t');
       await tester.ensureVisible(find.text('Informazioni'));
       await tester.pumpAndSettle();
       await _shot('settings_data_$t');

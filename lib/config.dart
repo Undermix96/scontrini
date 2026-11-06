@@ -104,10 +104,16 @@ class AppConfig {
     await repo.setSetting(kBaseUrl, baseUrl);
     await repo.setSetting(kModel, model);
     await keys.write(_kApiKey, apiKey);
-    if (!setupDone) {
-      setupDone = true;
-      await repo.setSetting(kSetupDone, 'true');
-    }
+  }
+
+  /// Chiave salvata ma primo avvio non ancora concluso (passo "Proteggi l'app").
+  bool get needsProtectStep => !setupDone && apiKey.isNotEmpty;
+
+  /// Fine del primo avvio.
+  Future<void> finishSetup() async {
+    if (setupDone) return;
+    setupDone = true;
+    await repo.setSetting(kSetupDone, 'true');
   }
 
   Future<void> backupDone(DateTime at) async {

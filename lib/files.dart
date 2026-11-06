@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 
+import 'lock/lock_controller.dart';
+
 /// Salvataggio e apertura di file tramite il selettore di sistema (Storage
 /// Access Framework su Android, documenti su iOS): l'utente sceglie dove.
 /// Sostituibile nei test.
@@ -25,4 +27,18 @@ class SystemFiles implements FileGateway {
     final f = await FilePicker.pickFile(type: FileType.any);
     return f == null ? null : await f.readAsBytes();
   }
+}
+
+/// Il tempo passato nel selettore di sistema non fa scattare il blocco.
+class LockAwareFiles implements FileGateway {
+  final FileGateway inner;
+  final LockController lock;
+  const LockAwareFiles(this.inner, this.lock);
+
+  @override
+  Future<bool> save(String fileName, Uint8List bytes, String mimeType) =>
+      lock.suspendWhile(() => inner.save(fileName, bytes, mimeType));
+
+  @override
+  Future<Uint8List?> open() => lock.suspendWhile(inner.open);
 }

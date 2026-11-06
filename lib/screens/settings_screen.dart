@@ -8,6 +8,7 @@ import '../version.dart';
 import '../widgets/ai_settings_form.dart';
 import '../widgets/common.dart';
 import '../widgets/floating_nav_bar.dart';
+import '../widgets/security_settings.dart';
 import 'export_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -65,6 +66,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 buttonLabel: 'Verifica e salva',
                 onSaved: () => showSnack(context, 'Chiave verificata, impostazioni salvate.'),
               ),
+              section('Sicurezza'),
+              const SecuritySettings(),
               section('Dati'),
               Container(
                 decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(Radii.md)),

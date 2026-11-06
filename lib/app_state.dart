@@ -4,6 +4,9 @@ import 'ai/ai_client.dart';
 import 'config.dart';
 import 'data/repository.dart';
 import 'files.dart';
+import 'lock/biometrics.dart';
+import 'lock/lock_controller.dart';
+import 'lock/pin_hash.dart';
 import 'models.dart';
 import 'scan_controller.dart';
 import 'widgets/month_selector.dart';
@@ -16,14 +19,18 @@ enum AppTab { movements, stats, categories, settings }
 class AppState extends ChangeNotifier {
   final AppConfig config;
   final AiClient ai;
-  final FileGateway files;
+  final LockController lock;
+  late final FileGateway files;
   late final ScanController scan = ScanController(this);
   List<Category> categories = [];
 
-  /// [ai] e [files] si possono sostituire nei test.
-  AppState(this.config, {AiClient? ai, FileGateway? files})
+  /// [ai], [files] e [biometrics] si possono sostituire nei test.
+  AppState(this.config,
+      {AiClient? ai, FileGateway? files, Biometrics? biometrics, int pinIterations = PinHash.defaultIterations})
       : ai = ai ?? AiClient(),
-        files = files ?? const SystemFiles();
+        lock = LockController(config.repo, config.keys, biometrics ?? SystemBiometrics(), iterations: pinIterations) {
+    this.files = LockAwareFiles(files ?? const SystemFiles(), lock);
+  }
 
   Repository get repo => config.repo;
 

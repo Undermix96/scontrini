@@ -9,6 +9,7 @@ import 'data/repository.dart';
 import 'scan_controller.dart';
 import 'screens/categories_screen.dart';
 import 'screens/movements_screen.dart';
+import 'screens/pin_screen.dart';
 import 'screens/receipt_screen.dart';
 import 'screens/scan_screen.dart';
 import 'screens/settings_screen.dart';
@@ -24,7 +25,9 @@ Future<void> main() async {
   final db = await AppDatabase.open();
   final config = AppConfig(Repository(db));
   await config.load();
-  runApp(ScontriniApp(state: AppState(config)));
+  final state = AppState(config);
+  await state.lock.load();
+  runApp(ScontriniApp(state: state));
 }
 
 class ScontriniApp extends StatelessWidget {
@@ -48,6 +51,7 @@ class ScontriniApp extends StatelessWidget {
         theme: buildTheme(Brightness.light),
         darkTheme: buildTheme(Brightness.dark),
         themeMode: ThemeMode.system,
+        builder: (context, child) => LockGate(child: child!),
         home: const _Root(),
       ),
     );
@@ -83,6 +87,9 @@ class _HomeShellState extends State<HomeShell> {
     super.initState();
     _state.reloadCategories().catchError((_) {});
     _state.scan.addListener(_onScan);
+    ScanController.recoverLost().then((p) {
+      if (p != null && mounted && !_state.scan.running) _state.scan.start(p.$1, p.$2);
+    });
   }
 
   @override

@@ -23,7 +23,7 @@ Future<void> startScanFlow(BuildContext context, [ImageSource? source]) async {
   }
   source ??= await chooseImageSource(context);
   if (source == null) return;
-  final picked = await ScanController.pick(source);
+  final picked = await state.lock.suspendWhile(() => ScanController.pick(source!));
   if (picked == null) return;
   state.scan.start(picked.$1, picked.$2);
   await navigator.push(MaterialPageRoute(builder: (_) => const ScanScreen()));
