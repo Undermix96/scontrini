@@ -15,11 +15,12 @@ Tutti i dati restano **solo sul telefono**.
 ```
 App Flutter ──(HTTPS, la tua chiave)──▶ OpenRouter o servizio compatibile OpenAI (lettura + categorie)
      │
-     └──▶ SQLite sul telefono (drift): scontrini, righe, categorie, impostazioni
+     └──▶ SQLite del sistema (drift + sqflite): scontrini, righe, categorie, impostazioni
 ```
 
-- **Database**: SQLite tramite [drift](https://drift.simonbinder.eu), nella cartella dati privata dell'app (`<Application Support>/db/scontrini.sqlite`). Resta tra un aggiornamento e l'altro; si perde solo disinstallando l'app.
-- **Aggiornamenti dello schema**: migrazioni versionate (`schemaVersion` in `lib/data/db.dart`), con gli schemi salvati in `drift_schemas/` e test di migrazione generati. Prima di ogni migrazione l'app salva una copia del database (`scontrini.pre-upgrade.sqlite`).
+- **Database**: [drift](https://drift.simonbinder.eu) sopra il SQLite del sistema operativo, tramite [sqflite](https://pub.dev/packages/sqflite) (`drift_sqflite`), nella cartella dati privata dell'app (`<Application Support>/db/scontrini.sqlite`). Resta tra un aggiornamento e l'altro; si perde solo disinstallando l'app.
+- **Niente FFI nell'app**: il backend FFI di drift registra funzioni SQL come callback create a runtime in memoria eseguibile, che GrapheneOS segnala come *DCL via memory*. Con sqflite questo non succede e nell'APK non c'è una libreria SQLite precompilata. Per lo stesso motivo niente upsert (`ON CONFLICT DO UPDATE`): il SQLite di Android 7–10 non lo supporta.
+- **Aggiornamenti dello schema**: migrazioni versionate (`schemaVersion` in `lib/data/db.dart`), con gli schemi salvati in `drift_schemas/` e test di migrazione generati. Prima di ogni migrazione l'app salva una copia del file del database (`scontrini.pre-upgrade.sqlite`).
 - **Importi** in centesimi interi, **date** in UTC.
 - **Chiave API**: solo nel Keystore (Android) o nel Keychain (iOS). Non è mai nel binario, nel repository o nei backup.
 - **Backup di sistema disattivato**: su Android `allowBackup="false"` e regole di estrazione che escludono backup su cloud e trasferimento a un nuovo telefono; su iOS la cartella del database è esclusa dal backup iCloud. I dati escono dal telefono solo con il backup manuale dell'app.
@@ -101,7 +102,7 @@ flutter pub get
 flutter run
 ```
 
-Test (usano un database SQLite in memoria e un servizio AI finto):
+Test (usano un database SQLite in memoria via FFI, con il SQLite del sistema di sviluppo — `winsqlite3` su Windows, `libsqlite3.so.0` su Linux, vedi `hooks` in `pubspec.yaml` — e un servizio AI finto):
 
 ```bash
 flutter test

@@ -36,7 +36,9 @@ class Repository {
     if (value == null) {
       await (db.delete(db.settings)..where((s) => s.key.equals(key))).go();
     } else {
-      await db.into(db.settings).insertOnConflictUpdate(SettingsCompanion.insert(key: key, value: value));
+      // INSERT OR REPLACE e non upsert: il SQLite di sistema di Android 7-10
+      // non conosce ON CONFLICT DO UPDATE.
+      await db.into(db.settings).insert(SettingsCompanion.insert(key: key, value: value), mode: InsertMode.insertOrReplace);
     }
   }
 

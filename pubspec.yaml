@@ -21,11 +21,10 @@ dependencies:
   intl: ^0.20.2
   url_launcher: ^6.3.3
   drift: ^2.35.3
-  drift_flutter: ^0.3.1
   path_provider: ^2.1.6
   file_picker: ^13.3.2
   pdf: ^3.13.1
-  sqlite3: 3.5.2
+  drift_sqflite: ^2.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -34,6 +33,7 @@ dev_dependencies:
   flutter_native_splash: ^2.4.8
   drift_dev: ^2.35.2
   build_runner: ^2.17.1
+  sqlite3: 3.5.2
 
 flutter:
   uses-material-design: true
@@ -50,3 +50,14 @@ flutter:
           weight: 700
         - asset: assets/fonts/Manrope-ExtraBold.ttf
           weight: 800
+
+# L'app usa il SQLite del sistema tramite sqflite (drift_sqflite), senza FFI.
+# package:sqlite3 (dipendenza di drift) serve solo ai test: per non includere
+# nell'APK una libreria SQLite precompilata scaricata, la si cerca nel sistema.
+# Test su Windows: winsqlite3.dll; su Linux (CI): libsqlite3.so.0 di Ubuntu.
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
+      name_windows: winsqlite3
+      name_linux: /usr/lib/x86_64-linux-gnu/libsqlite3.so.0

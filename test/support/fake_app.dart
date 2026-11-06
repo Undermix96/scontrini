@@ -2,12 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 import 'package:scontrini/ai/ai_client.dart';
 import 'package:scontrini/app_state.dart';
 import 'package:scontrini/config.dart';
 import 'package:scontrini/data/db.dart';
 import 'package:scontrini/data/repository.dart';
 import 'package:scontrini/files.dart';
+
+/// Database in memoria via FFI (sqlite3 del sistema di sviluppo, vedi
+/// `hooks` in pubspec.yaml). L'app usa invece sqflite.
+AppDatabase memoryDatabase() => AppDatabase(NativeDatabase.memory());
 
 /// Servizio AI finto: niente rete.
 class FakeAi extends AiClient {
@@ -62,7 +67,7 @@ class FakeFiles implements FileGateway {
 /// App con database in memoria e gli stessi dati delle tavole del design.
 class FakeApp {
   final DateTime now;
-  final db = AppDatabase.memory();
+  final db = memoryDatabase();
   late final repo = Repository(db, now: () => now);
   final keys = MemoryKeyStore();
   final ai = FakeAi();

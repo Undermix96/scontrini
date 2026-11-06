@@ -1,11 +1,10 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
+import 'package:drift_sqflite/drift_sqflite.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 part 'db.g.dart';
 
@@ -90,43 +89,58 @@ const defaultCategories = [
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
-  /// Database in memoria, per i test.
-  factory AppDatabase.memory() => AppDatabase(NativeDatabase.memory(setup: _setup));
-
   /// Apre il database dell'app nella cartella dati privata.
   ///
   /// Il file si trova in `<supporto applicazione>/db/scontrini.sqlite`: resta
   /// tra un aggiornamento e l'altro e si perde solo disinstallando l'app.
+  ///
+  /// Usa il SQLite del sistema tramite sqflite (Java su Android, C su iOS):
+  /// niente FFI nell'app, quindi nessuna callback creata a runtime in
+  /// memoria eseguibile (GrapheneOS la segnala come "DCL via memory").
+  /// I test usano invece un database in memoria via FFI.
   static Future<AppDatabase> open() async {
     final dir = await databaseDirectory();
-    return AppDatabase.file(File('${dir.path}/$fileName'));
-  }
-
-  /// Database nel file indicato (in un isolate separato). Prima di una
-  /// migrazione ne salva una copia accanto, in `scontrini.pre-upgrade.sqlite`.
-  factory AppDatabase.file(File file) {
-    final backupPath = '${file.parent.path}/$preUpgradeFileName';
-    return AppDatabase(NativeDatabase.createInBackground(file, setup: (db) {
-      _setup(db);
-      copyBeforeUpgrade(db, backupPath);
-    }));
+    final file = File('${dir.path}/$fileName');
+    await copyBeforeUpgrade(file);
+    return AppDatabase(SqfliteQueryExecutor(path: file.path));
   }
 
   static const preUpgradeFileName = 'scontrini.pre-upgrade.sqlite';
 
-  /// Prima di una migrazione di schema salva una copia coerente del database
-  /// (VACUUM INTO gestisce anche il WAL). Se l'aggiornamento andasse storto i
-  /// dati restano recuperabili. Si tiene solo l'ultima copia.
-  @visibleForTesting
-  static void copyBeforeUpgrade(sqlite3.Database db, String path, {int latest = latestSchemaVersion}) {
-    final version = db.userVersion;
-    if (version == 0 || version >= latest) return;
+  /// Prima di una migrazione di schema salva una copia del database accanto
+  /// all'originale (con gli eventuali file -wal e -journal, così la copia è
+  /// coerente). Se l'aggiornamento andasse storto i dati restano
+  /// recuperabili. Si tiene solo l'ultima copia. Va chiamata con il database
+  /// chiuso.
+  static Future<void> copyBeforeUpgrade(File db, {int latest = latestSchemaVersion}) async {
     try {
-      final old = File(path);
-      if (old.existsSync()) old.deleteSync();
-      db.execute('VACUUM INTO ?', [path]);
+      if (!await db.exists()) return;
+      final version = await fileUserVersion(db);
+      if (version == null || version == 0 || version >= latest) return;
+      final target = '${db.parent.path}/$preUpgradeFileName';
+      for (final suffix in ['', '-wal', '-journal']) {
+        final old = File('$target$suffix');
+        if (await old.exists()) await old.delete();
+        final src = File('${db.path}$suffix');
+        if (await src.exists()) await src.copy('$target$suffix');
+      }
     } catch (e) {
-      debugPrint('Copia prima dell\'aggiornamento non riuscita: $e');
+      debugPrint("Copia prima dell'aggiornamento non riuscita: $e");
+    }
+  }
+
+  /// `user_version` (la versione dello schema) letta dall'intestazione del
+  /// file SQLite: 4 byte big-endian all'offset 60. Null se il file non è un
+  /// database SQLite. Con un WAL non ancora riportato può essere più vecchia
+  /// di quella reale: al massimo si fa una copia in più.
+  static Future<int?> fileUserVersion(File db) async {
+    final raf = await db.open();
+    try {
+      final header = await raf.read(64);
+      if (header.length < 64 || String.fromCharCodes(header.sublist(0, 15)) != 'SQLite format 3') return null;
+      return ByteData.sublistView(Uint8List.fromList(header)).getUint32(60);
+    } finally {
+      await raf.close();
     }
   }
 
@@ -150,11 +164,6 @@ class AppDatabase extends _$AppDatabase {
     } catch (e) {
       debugPrint('Esclusione dal backup iCloud non riuscita: $e');
     }
-  }
-
-  static void _setup(sqlite3.Database db) {
-    db.execute('PRAGMA foreign_keys = ON');
-    db.execute('PRAGMA journal_mode = WAL');
   }
 
   // Ogni modifica allo schema: incrementare latestSchemaVersion, aggiungere

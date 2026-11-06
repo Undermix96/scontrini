@@ -67,6 +67,10 @@ jobs:
 
       - run: flutter analyze --no-fatal-infos
 
+      # I test usano il SQLite di sistema via FFI (vedi `hooks` in pubspec.yaml).
+      - name: SQLite per i test
+        run: test -f /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 || sudo apt-get install -y libsqlite3-0
+
       - run: flutter test
 
       # Firma release con i secrets del repo (configurati). Senza secrets (es. in un
