@@ -342,7 +342,7 @@ class _MovementsScreenState extends State<MovementsScreen> {
             padding: const EdgeInsets.symmetric(vertical: 4),
             decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(Radii.md)),
             child: Column(children: [
-              if (pending && day == todayKey) PendingScanTile(onTap: () => startScanFlow(context)),
+              if (pending && day == todayKey) PendingScanTile(count: s.scan.pending, onTap: () => openScanScreen(context)),
               for (final r in groups[day]!)
                 ReceiptTile(receipt: r, category: s.category(r.dominantCategoryId), onTap: () => _openReceipt(r)),
             ]),

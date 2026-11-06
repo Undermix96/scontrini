@@ -56,6 +56,9 @@ class AiScan {
 }
 
 const _maxImageBytes = 9 * 1024 * 1024;
+
+/// Parti al massimo per uno scontrino lungo (foto nella stessa richiesta).
+const maxScanParts = 6;
 final _mimeOk = RegExp(r'^image/(jpeg|png|webp|heic|heif)$');
 
 /// Chiama direttamente il servizio AI scelto dall'utente con la sua chiave.
@@ -122,12 +125,23 @@ class AiClient {
 
   /// Legge lo scontrino nella foto. [categories] sono i nomi tra cui l'AI
   /// deve scegliere per ogni riga.
-  Future<AiScan> scan(AiEndpoint e, Uint8List image, String mime, List<String> categories) async {
-    if (image.length > _maxImageBytes) throw AiException(AiErrorKind.other, 'Immagine troppo grande');
-    if (!_mimeOk.hasMatch(mime)) throw AiException(AiErrorKind.other, 'Formato immagine non supportato');
+  Future<AiScan> scan(AiEndpoint e, Uint8List image, String mime, List<String> categories) =>
+      scanParts(e, [(image, mime)], categories);
+
+  /// Legge uno scontrino fotografato in più parti (scontrino lungo), dall'alto
+  /// in basso, con una sola richiesta.
+  Future<AiScan> scanParts(AiEndpoint e, List<(Uint8List, String)> parts, List<String> categories) async {
+    if (parts.isEmpty || parts.length > maxScanParts) {
+      throw AiException(AiErrorKind.other, 'Da 1 a $maxScanParts foto per scontrino');
+    }
+    final size = parts.fold<int>(0, (s, p) => s + p.$1.length);
+    if (size > _maxImageBytes) throw AiException(AiErrorKind.other, 'Immagine troppo grande');
+    if (parts.any((p) => !_mimeOk.hasMatch(p.$2))) {
+      throw AiException(AiErrorKind.other, 'Formato immagine non supportato');
+    }
     if (e.model.trim().isEmpty) throw AiException(AiErrorKind.badModel, 'Indica il modello da usare nelle Impostazioni');
 
-    final body = requestBody(e, base64Encode(image), mime, categories);
+    final body = requestBody(e, [for (final (b, m) in parts) (base64Encode(b), m)], categories);
     var res = await _post(e, body);
     // Alcuni servizi compatibili non supportano json_schema: un secondo
     // tentativo senza, affidandosi alle istruzioni del prompt.
@@ -146,7 +160,8 @@ class AiClient {
     return _send(req, const Duration(seconds: 120));
   }
 
-  static Map<String, dynamic> requestBody(AiEndpoint e, String imageB64, String mime, List<String> categories) => {
+  /// Corpo della richiesta: il prompt e una o più immagini (base64, tipo).
+  static Map<String, dynamic> requestBody(AiEndpoint e, List<(String, String)> images, List<String> categories) => {
         'model': e.model.trim(),
         'temperature': 0,
         // Chiede ai provider di OpenRouter di non conservare/usare i dati per training.
@@ -159,11 +174,12 @@ class AiClient {
           {
             'role': 'user',
             'content': [
-              {'type': 'text', 'text': prompt(categories)},
-              {
-                'type': 'image_url',
-                'image_url': {'url': 'data:$mime;base64,$imageB64'}
-              },
+              {'type': 'text', 'text': prompt(categories, parts: images.length)},
+              for (final (b64, mime) in images)
+                {
+                  'type': 'image_url',
+                  'image_url': {'url': 'data:$mime;base64,$b64'}
+                },
             ],
           },
         ],
@@ -192,8 +208,12 @@ class AiClient {
     return AiScan(parsed, (data['model'] as String?) ?? model);
   }
 
-  static String prompt(List<String> categories) => [
+  static String prompt(List<String> categories, {int parts = 1}) => [
         'Sei un sistema OCR per scontrini (spesso italiani).',
+        if (parts > 1)
+          'Le $parts immagini sono parti consecutive dello STESSO scontrino lungo, nell\'ordine dall\'alto in basso: '
+              'leggile come un unico scontrino. Le righe che compaiono in due parti per la sovrapposizione '
+              'delle foto vanno contate una volta sola.',
         'Estrai esercente, data/ora, totale complessivo, valuta, metodo di pagamento e TUTTE le righe articolo.',
         'Per ogni riga indica descrizione leggibile, quantità, prezzo unitario, importo totale della riga',
         'e assegna una categoria scegliendo SOLO tra: ${categories.join(', ')}.',

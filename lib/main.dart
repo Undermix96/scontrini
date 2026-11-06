@@ -93,7 +93,7 @@ class _HomeShellState extends State<HomeShell> {
     _state.reloadCategories().catchError((_) {});
     _state.scan.addListener(_onScan);
     ScanController.recoverLost().then((p) {
-      if (p != null && mounted && !_state.scan.running) _state.scan.start(p.$1, p.$2);
+      if (p != null && mounted) _state.scan.start(p.$1, p.$2);
     });
   }
 
@@ -103,14 +103,20 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
-  /// Risultato di un'analisi proseguita in sottofondo.
+  /// Risultati delle letture proseguite in sottofondo: a coda finita, un
+  /// solo avviso con il riepilogo.
   void _onScan() {
     final scan = _state.scan;
-    final job = scan.job;
-    if (job == null || scan.screenAttached || !mounted) return;
-    if (job.status == ScanStatus.done) {
-      final r = job.result!;
-      scan.clear();
+    if (scan.jobs.isEmpty || scan.running || scan.screenAttached || !mounted) return;
+    final done = [for (final j in scan.jobs) if (j.status == ScanStatus.done) j];
+    final failed = [for (final j in scan.jobs) if (j.status == ScanStatus.error) j];
+    // Le letture non riuscite si possono riprovare con le stesse foto.
+    final retryParts = [for (final j in failed) j.parts];
+    for (final j in [...done, ...failed]) {
+      scan.clear(j);
+    }
+    if (done.length == 1 && failed.isEmpty) {
+      final r = done.single.result!;
       budgetAlertText(_state, r).then((alert) {
         if (!mounted) return;
         showSnack(context, 'Scontrino letto: ${r.displayMerchant}${alert == null ? '' : '. $alert'}',
@@ -118,12 +124,22 @@ class _HomeShellState extends State<HomeShell> {
           Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: r.id)));
         });
       });
-    } else if (job.status == ScanStatus.error) {
-      showSnack(context, 'Lettura non riuscita', actionLabel: 'Riprova', onAction: () {
-        scan.retry();
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ScanScreen()));
-      });
+      return;
     }
+    final text = [
+      if (done.isNotEmpty) done.length == 1 ? '1 scontrino letto' : '${done.length} scontrini letti',
+      if (failed.isNotEmpty) failed.length == 1 ? '1 lettura non riuscita' : '${failed.length} letture non riuscite',
+    ].join(', ');
+    showSnack(context, text,
+        actionLabel: failed.isEmpty ? null : 'Riprova',
+        onAction: failed.isEmpty
+            ? null
+            : () {
+                openScanScreen(context);
+                for (final parts in retryParts) {
+                  scan.enqueue(parts);
+                }
+              });
   }
 
   @override

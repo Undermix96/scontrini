@@ -3,35 +3,60 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'ai/ai_client.dart';
 import 'app_state.dart';
 import 'models.dart';
 
-enum ScanStatus { running, done, error }
+enum ScanStatus { waiting, running, done, error }
 
-/// Una lettura di scontrino. La foto vive solo in memoria ([bytes]).
+/// Una foto (o una parte di uno scontrino lungo).
+typedef ScanPart = (Uint8List bytes, String mime);
+
+/// Una lettura di scontrino, con una o più parti (dall'alto in basso). Le
+/// foto vivono solo in memoria, salvo l'opzione "Conserva le foto".
 class ScanJob {
-  final Uint8List bytes;
-  final String mime;
-  final DateTime startedAt = DateTime.now();
-  ScanStatus status = ScanStatus.running;
+  static int _next = 0;
+  final int id = _next++;
+  final List<ScanPart> parts;
+  DateTime startedAt = DateTime.now();
+  ScanStatus status = ScanStatus.waiting;
   Receipt? result;
   String? error;
 
-  ScanJob(this.bytes, this.mime);
+  ScanJob(this.parts);
+
+  Uint8List get bytes => parts.first.$1;
+  String get mime => parts.first.$2;
+  bool get finished => status == ScanStatus.done || status == ScanStatus.error;
 }
 
-/// Gestisce l'analisi in corso, anche quando l'utente lascia la schermata
-/// "Analisi in corso" (la lettura prosegue in sottofondo).
+/// Coda delle letture: una alla volta, in ordine, anche quando l'utente
+/// lascia la schermata "Analisi in corso" (la lettura prosegue in sottofondo).
 class ScanController extends ChangeNotifier {
   final AppState app;
   ScanController(this.app);
 
-  ScanJob? job;
+  /// Letture in coda, in corso o finite ma non ancora mostrate.
+  final List<ScanJob> jobs = [];
 
-  /// Vero se la schermata di analisi è aperta e gestirà lei il risultato.
+  /// La lettura mostrata dalla schermata di analisi: la prima della coda.
+  ScanJob? get job => jobs.isEmpty ? null : jobs.first;
+
+  /// Vero se la schermata di analisi è aperta (o sta per aprirsi, mentre si
+  /// scattano e ritagliano le foto) e gestirà lei i risultati.
   bool screenAttached = false;
 
-  bool get running => job?.status == ScanStatus.running;
+  /// Nessuna schermata gestirà i risultati: se ne occupa la shell.
+  void detach() {
+    screenAttached = false;
+    _changed();
+  }
+
+  /// Qualche lettura in attesa o in corso.
+  bool get running => jobs.any((j) => !j.finished);
+
+  /// Letture ancora da fare (in attesa o in corso).
+  int get pending => jobs.where((j) => !j.finished).length;
 
   void _changed() {
     notifyListeners();
@@ -40,9 +65,19 @@ class ScanController extends ChangeNotifier {
 
   /// Sceglie la foto e la legge in memoria, cancellando subito il file
   /// temporaneo creato dal selettore. Restituisce null se l'utente annulla.
-  static Future<(Uint8List, String)?> pick(ImageSource source) async {
+  static Future<ScanPart?> pick(ImageSource source) async {
     final picked = await ImagePicker().pickImage(source: source, maxWidth: 2000, maxHeight: 2000, imageQuality: 85);
     if (picked == null) return null;
+    return _read(picked);
+  }
+
+  /// Più foto dalla galleria (nell'ordine scelto). Lista vuota se annulla.
+  static Future<List<ScanPart>> pickMany() async {
+    final picked = await ImagePicker().pickMultiImage(maxWidth: 2000, maxHeight: 2000, imageQuality: 85);
+    return [for (final p in picked) await _read(p)];
+  }
+
+  static Future<ScanPart> _read(XFile picked) async {
     final bytes = await picked.readAsBytes();
     if (!kIsWeb) {
       try {
@@ -56,17 +91,13 @@ class ScanController extends ChangeNotifier {
 
   /// Foto scattata mentre Android ha chiuso l'app per mancanza di memoria
   /// (la fotocamera è un'altra app): al riavvio la si recupera.
-  static Future<(Uint8List, String)?> recoverLost() async {
+  static Future<ScanPart?> recoverLost() async {
     if (kIsWeb || !Platform.isAndroid) return null;
     try {
       final lost = await ImagePicker().retrieveLostData();
       final f = lost.file;
       if (lost.isEmpty || f == null) return null;
-      final bytes = await f.readAsBytes();
-      try {
-        await File(f.path).delete();
-      } catch (_) {}
-      return (bytes, mimeFor(f.name));
+      return await _read(f);
     } catch (_) {
       return null;
     }
@@ -80,40 +111,62 @@ class ScanController extends ChangeNotifier {
     return 'image/jpeg';
   }
 
-  /// Avvia una nuova lettura. Se ce n'è già una in corso non fa nulla.
-  void start(Uint8List bytes, String mime) {
-    if (running) return;
-    final j = ScanJob(bytes, mime);
-    job = j;
+  /// Mette in coda la lettura di uno scontrino con una sola foto.
+  void start(Uint8List bytes, String mime) => enqueue([(bytes, mime)]);
+
+  /// Mette in coda la lettura di uno scontrino (una o più parti).
+  ScanJob enqueue(List<ScanPart> parts) {
+    assert(parts.isNotEmpty && parts.length <= maxScanParts);
+    final j = ScanJob(List.unmodifiable(parts));
+    jobs.add(j);
     _changed();
-    _run(j);
+    _pump();
+    return j;
   }
 
-  /// Riprova l'ultima lettura fallita con la stessa foto.
-  void retry() {
-    final j = job;
+  /// Avvia la prossima lettura in attesa, se nessuna è in corso.
+  void _pump() {
+    if (jobs.any((j) => j.status == ScanStatus.running)) return;
+    for (final j in jobs) {
+      if (j.status == ScanStatus.waiting) {
+        j.status = ScanStatus.running;
+        j.startedAt = DateTime.now();
+        _changed();
+        _run(j);
+        return;
+      }
+    }
+  }
+
+  /// Riprova la lettura fallita [j] (di default la prima della coda).
+  void retry([ScanJob? j]) {
+    j ??= job;
     if (j == null || j.status != ScanStatus.error) return;
-    job = null;
-    start(j.bytes, j.mime);
+    j.status = ScanStatus.waiting;
+    j.error = null;
+    _changed();
+    _pump();
   }
 
   Future<void> _run(ScanJob j) async {
     try {
       if (app.categories.isEmpty) await app.reloadCategories();
       final names = app.categories.map((c) => c.name).toList();
-      final res = await app.ai.scan(app.config.endpoint, j.bytes, j.mime, names);
+      final res = await app.ai.scanParts(app.config.endpoint, j.parts, names);
       // Annullata mentre l'AI lavorava: il risultato non viene salvato.
-      if (!identical(job, j)) return;
+      if (!jobs.contains(j)) return;
       final r = await app.repo.saveScan(res.parsed, model: res.model);
-      if (!identical(job, j)) {
+      if (!jobs.contains(j)) {
         await app.repo.deleteReceipt(r.id);
         return;
       }
       if (app.config.keepPhotos) {
         try {
-          await app.repo.addPhoto(r.id, j.bytes, mime: j.mime);
+          for (final (bytes, mime) in j.parts) {
+            await app.repo.addPhoto(r.id, bytes, mime: mime);
+          }
         } catch (e) {
-          // Lo scontrino è salvato comunque: la foto si può aggiungere dopo.
+          // Lo scontrino è salvato comunque: le foto si possono aggiungere dopo.
           debugPrint('Foto non salvata: $e');
         }
       }
@@ -121,24 +174,30 @@ class ScanController extends ChangeNotifier {
       j.result = r;
       app.dataChanged();
     } catch (e) {
-      if (!identical(job, j)) return;
+      if (!jobs.contains(j)) return;
       j.status = ScanStatus.error;
       j.error = '$e';
-    }
-    _changed();
-  }
-
-  /// Annulla: la richiesta all'AI prosegue, ma il risultato verrà scartato.
-  void cancel() {
-    job = null;
-    _changed();
-  }
-
-  /// Il risultato (o l'errore) è stato mostrato all'utente.
-  void clear() {
-    if (job?.status != ScanStatus.running) {
-      job = null;
+    } finally {
       _changed();
+      _pump();
     }
+  }
+
+  /// Annulla [j] (di default la prima della coda): se è in corso la
+  /// richiesta all'AI prosegue, ma il risultato verrà scartato.
+  void cancel([ScanJob? j]) {
+    j ??= job;
+    if (j == null) return;
+    jobs.remove(j);
+    _changed();
+    _pump();
+  }
+
+  /// Il risultato (o l'errore) di [j] è stato mostrato all'utente.
+  void clear([ScanJob? j]) {
+    j ??= job;
+    if (j == null || !j.finished) return;
+    jobs.remove(j);
+    _changed();
   }
 }

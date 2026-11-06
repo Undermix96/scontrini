@@ -250,7 +250,7 @@ void main() {
       await _setup(tester, FakeApp(), b);
       final src = await _fakeReceipt(tester);
       final preview = (await tester.runAsync(() => makePreview(src)))!;
-      _push(tester, CropScreen(original: src, initial: preview, actionLabel: 'Analizza', moreLabel: 'Aggiungi una parte'));
+      _push(tester, CropScreen(original: src, initial: preview, actionLabel: 'Analizza', moreLabel: 'Altra parte'));
       await _settle(tester);
       await _shot('crop_$t');
     });
@@ -329,6 +329,25 @@ void main() {
       await tester.tap(find.text('Pane casereccio'));
       await tester.pumpAndSettle();
       await _shot('receipt_edit_$t');
+    });
+
+    testWidgets('scan queue $t', (tester) async {
+      final app = FakeApp();
+      app.ai.scanCompleter = Completer<AiScan>();
+      final s = await _setup(tester, app, b);
+      final bytes = await _receiptPhoto(tester);
+      s.scan.enqueue([(bytes, 'image/png'), (bytes, 'image/png'), (bytes, 'image/png')]);
+      s.scan.enqueue([(bytes, 'image/png')]);
+      s.scan.enqueue([(bytes, 'image/png')]);
+      _push(tester, const ScanScreen());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 600));
+      await _shot('scan_queue_$t');
+      s.scan.cancel();
+      s.scan.cancel();
+      s.scan.cancel();
+      await tester.pump(const Duration(seconds: 1));
     });
 
     testWidgets('scan $t', (tester) async {

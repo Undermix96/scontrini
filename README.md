@@ -8,6 +8,7 @@ Tutti i dati restano **solo sul telefono**.
 - Nessun account, nessun server: l'app parla soltanto con il servizio AI che configuri.
 - Nessun SDK di analytics, crash reporting, pubblicità, Firebase o Google Play Services.
 - Le foto non vengono conservate, a meno che tu non lo scelga: vanno al servizio AI per la lettura e poi vengono scartate. Con l'opzione *Conserva le foto* (spenta di default) restano solo nella cartella privata dell'app, escluse dai backup di sistema.
+- Più scontrini di fila (dalla fotocamera, "Scatta il prossimo", o scegliendone diversi dalla galleria) vanno in una coda letta in sottofondo; uno scontrino lungo si fotografa in più parti ("Altra parte", fino a 6) che vanno all'AI nella stessa richiesta.
 - Prima della lettura la foto si ritaglia e si raddrizza: il bordo dello scontrino viene proposto in automatico (codice nostro in Dart, niente ML Kit o OpenCV) e si corregge trascinando gli angoli.
 - Con OpenRouter l'app chiede `data_collection: deny`, cioè di usare solo fornitori che non conservano i dati e non li usano per l'addestramento.
 

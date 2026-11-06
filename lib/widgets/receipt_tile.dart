@@ -97,14 +97,17 @@ class _Avatar extends StatelessWidget {
 /// Riga segnaposto per un'analisi in sottofondo.
 class PendingScanTile extends StatelessWidget {
   final VoidCallback onTap;
-  const PendingScanTile({super.key, required this.onTap});
+
+  /// Letture in attesa o in corso.
+  final int count;
+  const PendingScanTile({super.key, required this.onTap, this.count = 1});
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     return Semantics(
       button: true,
-      label: 'Lettura in corso',
+      label: count > 1 ? 'Lettura in corso, $count scontrini' : 'Lettura in corso',
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,
@@ -121,7 +124,8 @@ class PendingScanTile extends StatelessWidget {
             ),
             const SizedBox(width: Gap.sm),
             Expanded(
-              child: Text('Lettura in corso…', style: AppText.titleSmall.copyWith(color: c.onSurfaceMuted)),
+              child: Text(count > 1 ? 'Lettura in corso… ($count scontrini)' : 'Lettura in corso…',
+                  style: AppText.titleSmall.copyWith(color: c.onSurfaceMuted)),
             ),
           ]),
         ),

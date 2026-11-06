@@ -27,6 +27,12 @@ class FakeAi extends AiClient {
   final probes = <AiEndpoint>[];
   int scans = 0;
 
+  /// Le prossime [failures] letture falliscono.
+  int failures = 0;
+
+  /// Numero di foto di ogni lettura.
+  final partsPerScan = <int>[];
+
   static Map<String, dynamic> get sampleScan => {
         'is_receipt': true,
         'merchant': 'Esselunga',
@@ -47,8 +53,13 @@ class FakeAi extends AiClient {
   }
 
   @override
-  Future<AiScan> scan(AiEndpoint e, Uint8List image, String mime, List<String> categories) {
+  Future<AiScan> scanParts(AiEndpoint e, List<(Uint8List, String)> parts, List<String> categories) {
     scans++;
+    partsPerScan.add(parts.length);
+    if (failures > 0) {
+      failures--;
+      return Future.error(AiException(AiErrorKind.network, 'Servizio non raggiungibile'));
+    }
     return scanCompleter?.future ?? Future.value(AiScan(sampleScan, 'google/gemini-2.5-flash'));
   }
 }

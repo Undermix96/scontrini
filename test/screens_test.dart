@@ -604,6 +604,56 @@ void main() {
     expect(decoded.height, closeTo(280, 6));
   });
 
+  testWidgets("Coda: due scontrini, poi si apre l'ultimo", (tester) async {
+    final app = FakeApp();
+    app.ai.scanCompleter = Completer<AiScan>();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    final photo = await _photo(tester);
+    state.scan.enqueue([(photo, 'image/png'), (photo, 'image/png')]);
+    state.scan.enqueue([(photo, 'image/png')]);
+    _push(tester, const ScanScreen());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('2 parti'), findsOneWidget);
+    expect(find.text('Poi 1 altro scontrino in coda.'), findsOneWidget);
+    app.ai.scanCompleter!.complete(AiScan(FakeAi.sampleScan, 'google/gemini-2.5-flash'));
+    await _advance(tester, const Duration(seconds: 3));
+    // Stessa risposta finta due volte: l'ultimo è un possibile doppione del primo
+    // e, essendo l'ultimo della coda, compare la domanda come per uno solo.
+    expect(find.text('Possibile doppione'), findsOneWidget);
+    await tester.tap(find.text('Tienilo'));
+    await _advance(tester, const Duration(seconds: 1));
+    await _settle(tester);
+    expect(find.byType(ReceiptScreen), findsOneWidget);
+    expect(state.scan.jobs, isEmpty);
+    expect(app.ai.partsPerScan, [2, 1]);
+    expect((await tester.runAsync(app.repo.allReceipts))!.length, 7);
+  });
+
+  testWidgets('Coda in sottofondo: un solo avviso di riepilogo', (tester) async {
+    final app = FakeApp();
+    app.ai.failures = 1;
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    final photo = await _photo(tester);
+    state.scan.enqueue([(photo, 'image/png')]);
+    state.scan.enqueue([(photo, 'image/png')]);
+    state.scan.enqueue([(photo, 'image/png')]);
+    await _advance(tester, const Duration(seconds: 1));
+    await _settle(tester);
+    expect(find.text('2 scontrini letti, 1 lettura non riuscita'), findsOneWidget);
+    expect(state.scan.jobs, isEmpty);
+    await tester.tap(find.text('Riprova'));
+    await _advance(tester, const Duration(seconds: 3));
+    expect(app.ai.scans, 4);
+    expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('Possibile doppione')), findsOneWidget);
+    await tester.tap(find.text('Tienilo'));
+    await _advance(tester, const Duration(seconds: 1));
+    await _settle(tester);
+    expect(find.byType(ReceiptScreen), findsOneWidget);
+  });
+
   testWidgets('Impostazioni: backup salvato senza chiave API', (tester) async {
     final app = FakeApp();
     final state = await _state(tester, app);

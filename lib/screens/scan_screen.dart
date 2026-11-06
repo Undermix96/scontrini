@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../ai/ai_client.dart';
 import '../app_state.dart';
 import '../format.dart';
 import '../models.dart';
@@ -14,33 +15,153 @@ import 'crop_screen.dart';
 import 'manual_entry_screen.dart';
 import 'receipt_screen.dart';
 
-/// Avvia il flusso di lettura: se c'è già un'analisi in corso la riapre,
-/// altrimenti chiede la sorgente (se non indicata), sceglie la foto e apre
-/// la schermata "Analisi in corso". Dal pannello si può anche inserire la
-/// spesa a mano.
+/// Avvia il flusso: chiede la sorgente (se non indicata), sceglie e
+/// ritaglia le foto, mette in coda le letture e apre la schermata "Analisi in
+/// corso". Dal pannello si può anche inserire la spesa a mano.
+///
+/// - Fotocamera: dopo ogni scatto "Altra parte" aggiunge un pezzo dello stesso
+///   scontrino lungo; finito uno scontrino si può scattare il prossimo.
+/// - Galleria: con più foto si sceglie se sono scontrini diversi o parti dello
+///   stesso scontrino.
 Future<void> startScanFlow(BuildContext context, [ImageSource? source]) async {
   final state = AppScope.read(context);
   final navigator = Navigator.of(context);
-  if (state.scan.running) {
-    await navigator.push(MaterialPageRoute(builder: (_) => const ScanScreen()));
-    return;
-  }
   if (source == null) {
     final choice = await chooseNewReceipt(context);
-    if (choice == null) return;
+    if (choice == null || !context.mounted) return;
     if (choice == NewReceipt.manual) {
       await navigator.push(MaterialPageRoute(builder: (_) => const ManualEntryScreen()));
       return;
     }
     source = choice == NewReceipt.camera ? ImageSource.camera : ImageSource.gallery;
   }
-  final picked = await state.lock.suspendWhile(() => ScanController.pick(source!));
-  if (picked == null || !context.mounted) return;
-  final cropped = await cropPhoto(context, picked.$1, picked.$2, actionLabel: 'Analizza');
-  if (cropped == null) return;
-  state.scan.start(cropped.bytes, cropped.mime);
-  await navigator.push(MaterialPageRoute(builder: (_) => const ScanScreen()));
+  // Le letture partono mentre si scattano le foto successive: i risultati li
+  // mostrerà la schermata di analisi, non la shell.
+  state.scan.screenAttached = true;
+  var queued = 0;
+  try {
+    queued = source == ImageSource.camera ? await _fromCamera(context, state) : await _fromGallery(context, state);
+  } finally {
+    if (queued == 0 || !context.mounted) state.scan.detach();
+  }
+  if (queued == 0 || !context.mounted) return;
+  await openScanScreen(context);
 }
+
+/// Apre la schermata "Analisi in corso" sulla coda attuale.
+Future<void> openScanScreen(BuildContext context) {
+  AppScope.read(context).scan.screenAttached = true;
+  return Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ScanScreen()));
+}
+
+/// Ritaglia [first] e, finché l'utente chiede "Altra parte", sceglie e
+/// ritaglia le parti successive da [source]. Null se annulla.
+Future<List<ScanPart>?> _receiptParts(BuildContext context, AppState state, ScanPart first, ImageSource source) async {
+  final parts = <ScanPart>[];
+  ScanPart? next = first;
+  while (next != null) {
+    if (!context.mounted) return null;
+    final n = parts.length + 1;
+    final cropped = await cropPhoto(
+      context,
+      next.$1,
+      next.$2,
+      actionLabel: 'Analizza',
+      moreLabel: n < maxScanParts ? 'Altra parte' : null,
+      title: n == 1 ? 'Ritaglia lo scontrino' : 'Parte $n dello scontrino',
+    );
+    if (cropped == null) return null;
+    parts.add((cropped.bytes, cropped.mime));
+    if (!cropped.addAnother) return parts;
+    next = await state.lock.suspendWhile<ScanPart?>(() => ScanController.pick(source));
+  }
+  // Annullata la scelta della parte successiva: si legge quello che c'è.
+  return parts;
+}
+
+Future<int> _fromCamera(BuildContext context, AppState state) async {
+  var queued = 0;
+  while (context.mounted) {
+    final first = await state.lock.suspendWhile(() => ScanController.pick(ImageSource.camera));
+    if (first == null || !context.mounted) break;
+    final parts = await _receiptParts(context, state, first, ImageSource.camera);
+    if (parts == null) break;
+    state.scan.enqueue(parts);
+    queued++;
+    if (!context.mounted || await askAnother(context, queued) != true) break;
+  }
+  return queued;
+}
+
+Future<int> _fromGallery(BuildContext context, AppState state) async {
+  final picked = await state.lock.suspendWhile(ScanController.pickMany);
+  if (picked.isEmpty || !context.mounted) return 0;
+  if (picked.length == 1) {
+    final parts = await _receiptParts(context, state, picked.single, ImageSource.gallery);
+    if (parts == null) return 0;
+    state.scan.enqueue(parts);
+    return 1;
+  }
+  final same = await askSameReceipt(context, picked.length);
+  if (same == null || !context.mounted) return 0;
+  if (same) {
+    if (picked.length > maxScanParts) {
+      showSnack(context, 'Al massimo $maxScanParts parti per scontrino.');
+      return 0;
+    }
+    final parts = <ScanPart>[];
+    for (var i = 0; i < picked.length; i++) {
+      if (!context.mounted) return 0;
+      final c = await cropPhoto(context, picked[i].$1, picked[i].$2,
+          actionLabel: i == picked.length - 1 ? 'Analizza' : 'Avanti',
+          title: 'Parte ${i + 1} di ${picked.length}');
+      if (c == null) return 0;
+      parts.add((c.bytes, c.mime));
+    }
+    state.scan.enqueue(parts);
+    return 1;
+  }
+  // Scontrini diversi: ognuno entra in coda appena ritagliato.
+  var queued = 0;
+  for (var i = 0; i < picked.length; i++) {
+    if (!context.mounted) break;
+    final c = await cropPhoto(context, picked[i].$1, picked[i].$2,
+        actionLabel: i == picked.length - 1 ? 'Analizza' : 'Analizza e avanti',
+        title: 'Scontrino ${i + 1} di ${picked.length}');
+    if (c == null) break;
+    state.scan.enqueue([(c.bytes, c.mime)]);
+    queued++;
+  }
+  return queued;
+}
+
+/// "Scatta il prossimo" / "Fine" dopo aver messo in coda uno scontrino.
+Future<bool?> askAnother(BuildContext context, int queued) => showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(queued == 1 ? 'Scontrino in lettura' : '$queued scontrini in lettura'),
+        content: const Text('Vuoi fotografare un altro scontrino? La lettura prosegue intanto.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Fine')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Scatta il prossimo')),
+        ],
+      ),
+    );
+
+/// Più foto dalla galleria: true se sono parti dello stesso scontrino.
+Future<bool?> askSameReceipt(BuildContext context, int count) => showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Hai scelto $count foto'),
+        content: const Text('Sono scontrini diversi o parti dello stesso scontrino lungo, '
+            "nell'ordine dall'alto in basso?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Stesso scontrino')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Scontrini diversi')),
+        ],
+      ),
+    );
 
 enum NewReceipt { camera, gallery, manual }
 
@@ -143,15 +264,49 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
+  int? _shownJob;
+
   void _onScan() {
     if (!mounted) return;
-    setState(() {});
     final job = _scan.job;
-    if (job?.status == ScanStatus.done && !_handled) {
-      _handled = true;
-      _timer?.cancel();
-      _finish(job!.result!);
+    // Nuova lettura in testa alla coda: si riparte con i passaggi.
+    if (job != null && job.id != _shownJob) {
+      _shownJob = job.id;
+      _handled = false;
+      _step = job.status == ScanStatus.running
+          ? (DateTime.now().difference(job.startedAt).inMilliseconds ~/ 2000).clamp(0, _steps.length - 1)
+          : 0;
     }
+    setState(() {});
+    if (job == null) {
+      if (!_handled) Navigator.maybePop(context);
+      _handled = true;
+      return;
+    }
+    if (job.status == ScanStatus.done && !_handled) {
+      _handled = true;
+      final r = job.result!;
+      if (_scan.jobs.length > 1) {
+        _next(job, r);
+      } else {
+        _timer?.cancel();
+        _finish(r);
+      }
+    }
+  }
+
+  /// Con altre letture in coda: avviso breve e si passa alla successiva. I
+  /// possibili doppioni restano segnalati sullo scontrino.
+  Future<void> _next(ScanJob job, Receipt r) async {
+    final state = AppScope.read(context);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    final alert = await budgetAlertText(state, r);
+    if (!mounted) return;
+    showSnack(context, 'Scontrino letto: ${r.displayMerchant}${alert == null ? '' : '. $alert'}',
+        actionLabel: 'Apri', onAction: () {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: r.id)));
+    });
+    _scan.clear(job);
   }
 
   Future<void> _finish(Receipt r) async {
@@ -184,7 +339,10 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
 
   void _cancel() {
     _scan.cancel();
-    Navigator.pop(context);
+    if (_scan.jobs.isEmpty) {
+      _handled = true;
+      Navigator.pop(context);
+    }
   }
 
   void _retry() {
@@ -204,6 +362,8 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     final failed = job?.status == ScanStatus.error;
     final done = job?.status == ScanStatus.done;
     final r = job?.result;
+    final others = _scan.jobs.length - 1;
+    final parts = job?.parts.length ?? 1;
 
     String? meta(int i) {
       if (r == null) return null;
@@ -250,9 +410,19 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                   ),
                   const SizedBox(height: Gap.xxs),
                   Text(
-                    failed ? (job?.error ?? 'Errore sconosciuto') : 'Di solito bastano una decina di secondi.',
+                    failed
+                        ? (job?.error ?? 'Errore sconosciuto')
+                        : [
+                            if (parts > 1) 'Scontrino in $parts parti.',
+                            'Di solito bastano una decina di secondi.',
+                          ].join(' '),
                     style: AppText.body.copyWith(fontSize: 14, height: 1.4, color: c.onSurfaceMuted),
                   ),
+                  if (others > 0) ...[
+                    const SizedBox(height: Gap.xs),
+                    Text(others == 1 ? 'Poi 1 altro scontrino in coda.' : 'Poi altri $others scontrini in coda.',
+                        style: AppText.label.copyWith(color: c.primary)),
+                  ],
                   const SizedBox(height: Gap.lg),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: Gap.md, vertical: 4),
@@ -308,7 +478,7 @@ class _Preview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final scanning = job?.status == ScanStatus.running;
+    final scanning = job?.status == ScanStatus.running || job?.status == ScanStatus.waiting;
     return Semantics(
       label: 'Anteprima della foto',
       image: true,
@@ -319,6 +489,16 @@ class _Preview extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(fit: StackFit.expand, children: [
           if (job != null) Image.memory(job!.bytes, fit: BoxFit.cover, gaplessPlayback: true),
+          if (job != null && job!.parts.length > 1)
+            Positioned(
+              right: Gap.sm,
+              top: Gap.sm,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(Radii.pill)),
+                child: Text('${job!.parts.length} parti', style: AppText.label.copyWith(color: c.onSurface)),
+              ),
+            ),
           if (scanning)
             AnimatedBuilder(
               animation: line,

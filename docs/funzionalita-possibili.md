@@ -10,7 +10,14 @@ Analisi delle funzioni presenti nelle app simili negli store (Expensify, Smart R
 - Rilevamento dei duplicati e avvisi
 - Statistiche per categoria (grafico a ciambella)
 - Export CSV, JSON e PDF
-- Backup manuale
+- Backup manuale (ZIP con le foto, se conservate)
+- Inserimento manuale di una spesa, con più righe
+- Budget mensile, totale e per categoria, con storico e avvisi all'80% e al 100%
+- Grafici: ultimi 12 mesi, andamento del mese rispetto al precedente, esercenti
+- Ritaglio e raddrizzamento della foto (codice nostro, senza ML Kit)
+- Foto conservate (facoltative), nella cartella privata dell'app
+- Più scontrini di fila in coda e scontrini lunghi in più foto
+- Blocco dell'app con PIN e impronta (facoltativo), schermo sicuro
 
 ## Legenda
 
