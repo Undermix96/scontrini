@@ -5,6 +5,7 @@ import '../format.dart';
 import '../models.dart';
 import '../theme/tokens.dart';
 import '../warnings.dart';
+import '../widgets/budget_widgets.dart';
 import '../widgets/common.dart';
 import '../widgets/item_editor.dart';
 import 'receipt_screen.dart';
@@ -155,6 +156,8 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
         if (mounted) setState(() => _busy = false);
         return;
       }
+      final alert = await budgetAlertText(_state, r);
+      if (alert != null && mounted) showSnack(context, '$alert.');
       navigator.pushReplacement(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: r.id, initial: r)));
     } catch (e) {
       if (mounted) {

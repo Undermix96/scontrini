@@ -61,6 +61,20 @@ class ReceiptItems extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Budget mensile, totale ([categoryId] nullo) o di una categoria, valido
+/// dal mese [fromMonth] (`AAAA-MM`) in poi, finché una riga più recente non
+/// lo cambia. [amountCents] nullo: da quel mese il budget è tolto. Al più una
+/// riga per categoria e mese (garantito dal repository: in SQLite i NULL non
+/// contano nei vincoli UNIQUE).
+@DataClassName('BudgetRow')
+class Budgets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get categoryId => integer().nullable().references(Categories, #id, onDelete: KeyAction.cascade)();
+  TextColumn get fromMonth => text()();
+  IntColumn get amountCents => integer().nullable()();
+  IntColumn get createdAt => integer()();
+}
+
 /// Impostazioni non segrete (la chiave API sta nel Keystore/Keychain).
 @DataClassName('SettingRow')
 class Settings extends Table {
@@ -85,7 +99,7 @@ const defaultCategories = [
   ('Altro', '#8E8C9C', 100),
 ];
 
-@DriftDatabase(tables: [Categories, Receipts, ReceiptItems, Settings])
+@DriftDatabase(tables: [Categories, Receipts, ReceiptItems, Settings, Budgets])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
@@ -169,7 +183,7 @@ class AppDatabase extends _$AppDatabase {
   // Ogni modifica allo schema: incrementare latestSchemaVersion, aggiungere
   // un passo in `migration`, poi `dart run drift_dev make-migrations` per
   // salvare lo schema in drift_schemas/ e generare i test di migrazione.
-  static const latestSchemaVersion = 1;
+  static const latestSchemaVersion = 2;
 
   @override
   int get schemaVersion => latestSchemaVersion;
@@ -181,7 +195,8 @@ class AppDatabase extends _$AppDatabase {
           await seedCategories();
         },
         onUpgrade: (m, from, to) async {
-          // Nessuna migrazione ancora: la versione 1 è la prima.
+          // v2: budget mensili.
+          if (from < 2) await m.createTable(budgets);
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');

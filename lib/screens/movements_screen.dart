@@ -65,6 +65,9 @@ class _MovementsScreenState extends State<MovementsScreen> {
     super.dispose();
   }
 
+  /// Budget totale del mese mostrato.
+  double? _budget;
+
   Future<void> _load({bool reset = false}) async {
     final s = AppScope.read(context);
     if (!s.config.isConfigured) return;
@@ -83,10 +86,12 @@ class _MovementsScreenState extends State<MovementsScreen> {
         s.repo.receipts(from: from, to: to),
         if (filtered) s.repo.receipts(from: from, to: to, q: s.movementsQuery, categoryId: s.movementsCategory),
       ]);
+      final budget = await s.repo.budgetFor(from);
       if (!mounted || id != _request) return;
       setState(() {
         _month = results[0];
         _list = filtered ? results[1] : results[0];
+        _budget = budget.total;
       });
     } catch (e) {
       if (mounted && id == _request) setState(() => _error = '$e');
@@ -182,6 +187,8 @@ class _MovementsScreenState extends State<MovementsScreen> {
                     label: 'Speso a ${monthName(month)}',
                     total: total == null ? '—' : money(total),
                     subtitle: subtitle,
+                    budget: monthList == null ? null : _budget,
+                    spent: total ?? 0,
                     onCamera: () => startScanFlow(context, ImageSource.camera),
                     onGallery: () => startScanFlow(context, ImageSource.gallery),
                   ),

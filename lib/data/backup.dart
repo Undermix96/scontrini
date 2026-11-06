@@ -16,12 +16,16 @@ import 'repository.dart';
 ///  "settings": {"ai_provider": "openrouter", "ai_base_url": "", "ai_model": "..."},
 ///  "categories": [{"id": 1, "name": "Alimentari", "color": "#4CC38A", "sort_order": 10, "created_at": "..."}],
 ///  "receipts": [{"id": "...", "merchant": "...", "purchased_at": "...", "total_cents": 1250, ...,
-///                "items": [{"id": "...", "position": 0, "description": "...", "total_cents": 250, ...}]}]}
+///                "items": [{"id": "...", "position": 0, "description": "...", "total_cents": 250, ...}]}],
+///  "budgets": [{"category_id": null, "from_month": "2026-11", "amount_cents": 50000, "created_at": "..."}]}
 /// ```
+///
+/// Versioni: 1 senza budget; 2 con `budgets` (solo nel backup, non
+/// nell'esportazione).
 class Backup {
   static const format = 'scontrini-backup';
   static const exportFormat = 'scontrini-export';
-  static const version = 1;
+  static const version = 2;
 
   /// Impostazioni salvate nel backup (mai la chiave API).
   static const settingKeys = [AppConfig.kProvider, AppConfig.kBaseUrl, AppConfig.kModel];
@@ -112,6 +116,15 @@ class Backup {
       'created_at': (now ?? repo.now()).toUtc().toIso8601String(),
       'settings': settings,
       ...await _data(repo.db),
+      'budgets': [
+        for (final b in await (repo.db.select(repo.db.budgets)..orderBy([(b) => OrderingTerm(expression: b.id)])).get())
+          {
+            'category_id': b.categoryId,
+            'from_month': b.fromMonth,
+            'amount_cents': b.amountCents,
+            'created_at': _iso(b.createdAt),
+          },
+      ],
     };
     return Uint8List.fromList(utf8.encode(const JsonEncoder.withIndent(' ').convert(json)));
   }
@@ -139,6 +152,7 @@ class Backup {
       throw DataException("Il ripristino è possibile solo al primo avvio, prima di usare l'app.");
     }
     await db.transaction(() async {
+      await db.delete(db.budgets).go();
       await db.delete(db.receiptItems).go();
       await db.delete(db.receipts).go();
       await db.delete(db.categories).go();
@@ -147,6 +161,7 @@ class Backup {
         // Prima senza doppioni, poi i riferimenti: l'ordine non conta.
         b.insertAll(db.receipts, [for (final r in parsed.receipts) r.copyWith(duplicateOf: const Value(null))]);
         b.insertAll(db.receiptItems, parsed.items);
+        b.insertAll(db.budgets, parsed.budgets);
         for (final r in parsed.receipts.where((r) => r.duplicateOf != null)) {
           b.update(db.receipts, ReceiptsCompanion(duplicateOf: Value(r.duplicateOf)),
               where: (x) => x.id.equals(r.id));
@@ -268,6 +283,29 @@ class Backup {
       }
     }
 
+    final budgets = <BudgetsCompanion>[];
+    final b = json['budgets'] ?? [];
+    if (b is! List) throw DataException('Backup danneggiato: budget non validi.');
+    final budgetKeys = <String>{};
+    for (final x in b) {
+      if (x is! Map) throw DataException('Backup danneggiato: budget non valido.');
+      final cat = (x['category_id'] as num?)?.toInt();
+      if (cat != null && !catIds.contains(cat)) throw DataException('Backup danneggiato: categoria inesistente.');
+      final month = req<String>(x, 'from_month');
+      if (!RegExp(r'^\d{4}-(0[1-9]|1[0-2])$').hasMatch(month)) {
+        throw DataException('Backup danneggiato: mese del budget non valido.');
+      }
+      if (!budgetKeys.add('$cat/$month')) throw DataException('Backup danneggiato: budget ripetuti.');
+      final amount = x['amount_cents'];
+      if (amount != null && amount is! int) throw DataException('Backup danneggiato: importo del budget non valido.');
+      budgets.add(BudgetsCompanion.insert(
+        categoryId: Value(cat),
+        fromMonth: month,
+        amountCents: Value(amount as int?),
+        createdAt: ms(x, 'created_at') ?? 0,
+      ));
+    }
+
     final settings = <String, String>{};
     final s = json['settings'];
     if (s is Map) {
@@ -275,7 +313,8 @@ class Backup {
         if (s[k] is String) settings[k] = s[k] as String;
       }
     }
-    return _Parsed(categories, receipts, items, settings, DateTime.tryParse('${json['created_at']}')?.toLocal());
+    return _Parsed(
+        categories, receipts, items, budgets, settings, DateTime.tryParse('${json['created_at']}')?.toLocal());
   }
 }
 
@@ -283,9 +322,10 @@ class _Parsed {
   final List<CategoryRow> categories;
   final List<ReceiptRow> receipts;
   final List<ItemRow> items;
+  final List<BudgetsCompanion> budgets;
   final Map<String, String> settings;
   final DateTime? createdAt;
-  _Parsed(this.categories, this.receipts, this.items, this.settings, this.createdAt);
+  _Parsed(this.categories, this.receipts, this.items, this.budgets, this.settings, this.createdAt);
 }
 
 class RestoreSummary {

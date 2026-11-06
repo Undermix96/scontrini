@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../format.dart';
 import '../models.dart';
 import '../theme/tokens.dart';
+import '../warnings.dart';
 import 'category_widgets.dart';
 import 'common.dart';
 
@@ -26,6 +28,11 @@ class _CategorySheet extends StatefulWidget {
 
 class _CategorySheetState extends State<_CategorySheet> {
   late final TextEditingController _name = TextEditingController(text: widget.cat?.name ?? '');
+  final _budget = TextEditingController();
+  late final DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+
+  /// Budget della categoria in vigore questo mese (null: nessuno).
+  double? _currentBudget;
   late String _color;
   bool _busy = false;
   String? _error;
@@ -36,6 +43,14 @@ class _CategorySheetState extends State<_CategorySheet> {
     final cat = widget.cat;
     if (cat != null) {
       _color = cat.color;
+      AppScope.read(context).repo.budgetFor(_month).then((b) {
+        if (!mounted) return;
+        _currentBudget = b.categories[cat.id];
+        final v = _currentBudget;
+        if (v != null && _budget.text.isEmpty) {
+          _budget.text = v.toStringAsFixed(2).replaceAll('.', ',').replaceAll(',00', '');
+        }
+      });
     } else {
       // Primo colore della griglia non ancora usato.
       final used = AppScope.read(context).categories.map((c) => c.color.toUpperCase()).toSet();
@@ -48,6 +63,7 @@ class _CategorySheetState extends State<_CategorySheet> {
   @override
   void dispose() {
     _name.dispose();
+    _budget.dispose();
     super.dispose();
   }
 
@@ -59,15 +75,30 @@ class _CategorySheetState extends State<_CategorySheet> {
   Future<void> _save() async {
     final state = AppScope.read(context);
     final name = _name.text.trim();
+    final budgetText = _budget.text.trim();
+    final budget = budgetText.isEmpty ? null : parseAmount(budgetText);
+    if (budgetText.isNotEmpty && (budget == null || budget < 0)) {
+      setState(() => _error = 'Scrivi un budget valido, per esempio 120 o 80,50.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
+      int id;
       if (widget.cat == null) {
         await state.repo.addCategory(name, _color);
+        id = (await state.repo.categories()).firstWhere((c) => c.name == name).id;
       } else {
-        await state.repo.updateCategory(widget.cat!.id, name: name, color: _color);
+        id = widget.cat!.id;
+        await state.repo.updateCategory(id, name: name, color: _color);
+      }
+      final before = _currentBudget == null ? null : cents(_currentBudget!);
+      final after = budget == null || cents(budget) == 0 ? null : cents(budget);
+      if (before != after) {
+        await state.repo.setBudget(id, _month, budget);
+        state.dataChanged();
       }
       await state.reloadCategories();
       if (mounted) Navigator.pop(context, true);
@@ -143,6 +174,15 @@ class _CategorySheetState extends State<_CategorySheet> {
             ),
             error: dup ? 'Esiste già una categoria con questo nome.' : null,
             onChanged: (_) => setState(() {}),
+            textInputAction: TextInputAction.done,
+          ),
+          const SizedBox(height: 18),
+          LabeledField(
+            label: 'Budget mensile',
+            controller: _budget,
+            hint: 'Nessuno',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            helper: 'Facoltativo. Vale da ${monthName(_month)} in poi.',
             textInputAction: TextInputAction.done,
           ),
           const SizedBox(height: 18),

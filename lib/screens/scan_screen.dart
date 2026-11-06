@@ -8,6 +8,7 @@ import '../format.dart';
 import '../models.dart';
 import '../scan_controller.dart';
 import '../theme/tokens.dart';
+import '../widgets/budget_widgets.dart';
 import '../widgets/common.dart';
 import 'manual_entry_screen.dart';
 import 'receipt_screen.dart';
@@ -173,6 +174,8 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       }
     }
     _scan.clear();
+    final alert = await budgetAlertText(state, r);
+    if (alert != null && mounted) showSnack(context, '$alert.');
     navigator.pushReplacement(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: r.id, initial: r)));
   }
 

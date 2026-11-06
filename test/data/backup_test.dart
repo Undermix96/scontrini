@@ -19,6 +19,9 @@ void main() {
     await source.state(); // dati di esempio + chiave e impostazioni salvate
     await source.repo.setDismissedWarnings('r1', ['total_mismatch']);
     await source.repo.addCategory('Animali', '#123456');
+    await source.repo.setBudget(null, DateTime(2026, 10), 500);
+    await source.repo.setBudget(null, DateTime(2026, 11), 450);
+    await source.repo.setBudget(1, DateTime(2026, 11), 200);
     backup = await Backup.create(source.repo, appVersion: '2026.11.20');
   });
   tearDown(() => source.db.close());
@@ -27,7 +30,8 @@ void main() {
     final text = utf8.decode(backup);
     final json = jsonDecode(text) as Map<String, dynamic>;
     expect(json['format'], 'scontrini-backup');
-    expect(json['version'], 1);
+    expect(json['version'], 2);
+    expect((json['budgets'] as List).length, 3);
     expect(json['settings'], {'ai_provider': 'openrouter', 'ai_base_url': '', 'ai_model': 'google/gemini-2.5-flash'});
     expect((json['receipts'] as List).length, 5);
     expect((json['categories'] as List).length, 11);
@@ -66,6 +70,27 @@ void main() {
     // Le nuove categorie continuano la numerazione.
     await app.repo.addCategory('Nuova', '#000000');
     expect((await app.repo.categories()).firstWhere((c) => c.name == 'Nuova').id, greaterThan(11));
+  });
+
+  test('il ripristino porta anche lo storico dei budget', () async {
+    final app = FakeApp(now: DateTime(2026, 12, 1));
+    addTearDown(app.db.close);
+    await Backup.restore(app.repo, backup);
+    expect((await app.repo.budgetFor(DateTime(2026, 10))).total, 500);
+    final nov = await app.repo.budgetFor(DateTime(2026, 11));
+    expect(nov.total, 450);
+    expect(nov.categories, {1: 200});
+  });
+
+  test('un backup della versione 1 (senza budget) si ripristina', () async {
+    final json = jsonDecode(utf8.decode(backup)) as Map<String, dynamic>;
+    json['version'] = 1;
+    json.remove('budgets');
+    final app = FakeApp();
+    addTearDown(app.db.close);
+    final summary = await Backup.restore(app.repo, _bytes(json));
+    expect(summary.receipts, 5);
+    expect((await app.repo.budgetFor(DateTime(2026, 11))).isEmpty, isTrue);
   });
 
   test('ripristino rifiutato dopo il primo avvio', () async {

@@ -16,6 +16,7 @@ import 'screens/settings_screen.dart';
 import 'screens/setup_screen.dart';
 import 'screens/stats_screen.dart';
 import 'theme/theme.dart';
+import 'widgets/budget_widgets.dart';
 import 'widgets/common.dart';
 import 'widgets/floating_nav_bar.dart';
 
@@ -106,8 +107,12 @@ class _HomeShellState extends State<HomeShell> {
     if (job.status == ScanStatus.done) {
       final r = job.result!;
       scan.clear();
-      showSnack(context, 'Scontrino letto: ${r.displayMerchant}', actionLabel: 'Apri', onAction: () {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: r.id)));
+      budgetAlertText(_state, r).then((alert) {
+        if (!mounted) return;
+        showSnack(context, 'Scontrino letto: ${r.displayMerchant}${alert == null ? '' : '. $alert'}',
+            actionLabel: 'Apri', onAction: () {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReceiptScreen(receiptId: r.id)));
+        });
       });
     } else if (job.status == ScanStatus.error) {
       showSnack(context, 'Lettura non riuscita', actionLabel: 'Riprova', onAction: () {

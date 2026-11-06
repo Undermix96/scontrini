@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
+import '../budget.dart';
 import '../models.dart';
 import '../warnings.dart';
 import 'db.dart';
@@ -359,6 +360,58 @@ class Repository {
       readsFrom: {db.receipts, db.receiptItems},
     ).get();
     return [for (final r in rows) CategoryTotal(r.read<int?>('c'), _eur(r.read<int>('t')))];
+  }
+
+  // ------------------------------------------------------------- budget
+
+  Future<List<BudgetEntry>> budgetEntries() async => [
+        for (final b in await db.select(db.budgets).get())
+          BudgetEntry(b.categoryId, b.fromMonth, b.amountCents == null ? null : _eur(b.amountCents!)),
+      ];
+
+  Future<MonthBudget> budgetFor(DateTime month) async => resolveBudget(await budgetEntries(), month);
+
+  /// Imposta (o toglie, con [amount] null) il budget da [month] in poi. I
+  /// mesi precedenti mantengono il budget che avevano.
+  Future<void> setBudget(int? categoryId, DateTime month, double? amount) async {
+    final key = monthKey(month);
+    final value = amount == null || cents(amount) <= 0 ? null : cents(amount);
+    await db.transaction(() async {
+      final same = db.delete(db.budgets)
+        ..where((b) => b.fromMonth.equals(key) & (categoryId == null ? b.categoryId.isNull() : b.categoryId.equals(categoryId)));
+      await same.go();
+      final previous = resolveBudget(await budgetEntries(), month).of(categoryId);
+      // Uguale a quello già in vigore: nessuna riga in più.
+      if ((previous == null ? null : cents(previous)) == value) return;
+      await db.into(db.budgets).insert(BudgetsCompanion.insert(
+            categoryId: Value(categoryId),
+            fromMonth: key,
+            amountCents: Value(value),
+            createdAt: _nowMs,
+          ));
+    });
+  }
+
+  /// Spesa del mese per categoria (chiave null: righe senza categoria).
+  Future<Map<int?, double>> monthSpending(DateTime month) async => {
+        for (final t in await stats(from: DateTime(month.year, month.month), to: DateTime(month.year, month.month + 1)))
+          t.categoryId: t.total,
+      };
+
+  /// Soglia di budget superata per prima dallo scontrino [r] appena
+  /// salvato, o null.
+  Future<BudgetCrossing?> budgetCrossingFor(Receipt r) async {
+    final when = r.purchasedAt ?? now();
+    final month = DateTime(when.year, when.month);
+    final budget = await budgetFor(month);
+    if (budget.isEmpty) return null;
+    final after = await monthSpending(month);
+    final before = Map<int?, double>.of(after);
+    for (final i in r.items) {
+      before[i.categoryId] = ((cents(before[i.categoryId] ?? 0) - cents(i.total)) / 100);
+    }
+    final crossings = budgetCrossings(budget, before, after);
+    return crossings.isEmpty ? null : crossings.first;
   }
 
   // ------------------------------------------------------------- nuovi scontrini

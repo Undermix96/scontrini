@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../format.dart';
 import '../theme/tokens.dart';
+import 'budget_widgets.dart';
 
 /// Card di riepilogo con il bordo inferiore seghettato, come uno scontrino.
 class SummaryCard extends StatelessWidget {
@@ -10,6 +12,10 @@ class SummaryCard extends StatelessWidget {
   final VoidCallback? onCamera;
   final VoidCallback? onGallery;
 
+  /// Budget totale del mese (se impostato) e spesa da confrontare.
+  final double? budget;
+  final double spent;
+
   const SummaryCard({
     super.key,
     required this.label,
@@ -17,6 +23,8 @@ class SummaryCard extends StatelessWidget {
     required this.subtitle,
     this.onCamera,
     this.onGallery,
+    this.budget,
+    this.spent = 0,
   });
 
   @override
@@ -41,6 +49,19 @@ class SummaryCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(subtitle, style: AppText.bodySmall.copyWith(color: c.onSummaryCardMuted)),
+              if (budget != null) ...[
+                const SizedBox(height: Gap.sm),
+                BudgetBar(
+                  spent: spent,
+                  budget: budget!,
+                  height: 6,
+                  color: ScontriniColors.summaryInk,
+                  track: ScontriniColors.summaryGhost,
+                ),
+                const SizedBox(height: 4),
+                Text('${budgetRemaining(spent, budget!)} · budget ${money(budget!)}',
+                    style: AppText.bodySmall.copyWith(color: c.onSummaryCardMuted)),
+              ],
             ]),
           ),
           const SizedBox(height: 18),

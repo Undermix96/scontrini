@@ -184,6 +184,26 @@ void main() {
       await _shot('new_sheet_$t');
     });
 
+    testWidgets('budget $t', (tester) async {
+      final app = FakeApp();
+      final s = await _setup(tester, app, b);
+      final month = DateTime(DateTime.now().year, DateTime.now().month);
+      await tester.runAsync(() async {
+        await app.repo.setBudget(null, month, 150);
+        await app.repo.setBudget(5, month, 15);
+        await app.repo.setBudget(1, month, 40);
+      });
+      s.dataChanged();
+      await _settle(tester);
+      await _shot('budget_home_$t');
+      s.setTab(AppTab.stats);
+      await _settle(tester);
+      await _shot('budget_stats_$t');
+      await tester.tap(find.byTooltip('Modifica budget'));
+      await _settle(tester);
+      await _shot('budget_sheet_$t');
+    });
+
     testWidgets('home $t', (tester) async {
       await _setup(tester, FakeApp(), b);
       await _shot('home_$t');

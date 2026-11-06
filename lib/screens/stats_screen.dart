@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../budget.dart';
 import '../format.dart';
 import '../models.dart';
 import '../theme/tokens.dart';
+import '../widgets/budget_widgets.dart';
 import '../widgets/common.dart';
 import '../widgets/donut_chart.dart';
 import '../widgets/floating_nav_bar.dart';
@@ -21,6 +23,7 @@ class _StatsScreenState extends State<StatsScreen> {
   DateTime _month = monthStart(DateTime.now());
   List<CategoryTotal>? _totals;
   double? _previous;
+  MonthBudget _budget = const MonthBudget();
   String? _error;
   int _seen = -1;
   int _request = 0;
@@ -46,11 +49,13 @@ class _StatsScreenState extends State<StatsScreen> {
         s.repo.stats(from: monthStart(_month), to: monthEnd(_month)),
         s.repo.stats(from: monthStart(prev), to: monthEnd(prev)),
       ]);
+      final budget = await s.repo.budgetFor(_month);
       if (!mounted || id != _request) return;
       final t = res[0]..sort((a, b) => b.total.compareTo(a.total));
       setState(() {
         _totals = t;
         _previous = res[1].fold<double>(0, (sum, x) => sum + x.total);
+        _budget = budget;
       });
     } catch (e) {
       if (mounted && id == _request) setState(() => _error = '$e');
@@ -96,16 +101,27 @@ class _StatsScreenState extends State<StatsScreen> {
                   ]))
                 else if (totals == null)
                   const Padding(padding: EdgeInsets.all(Gap.xxxl), child: Center(child: CircularProgressIndicator()))
-                else if (totals.isEmpty)
-                  _box(
-                    c,
-                    Text('Nessuna spesa a ${monthName(_month)}.',
-                        textAlign: TextAlign.center, style: AppText.body.copyWith(color: c.onSurfaceMuted)),
-                  )
                 else ...[
-                  _chartCard(s, c, totals),
-                  const SizedBox(height: Gap.md),
-                  _list(s, c, totals),
+                  if (_budget.total != null || _editable) ...[
+                    BudgetCard(
+                      month: _month,
+                      spent: totals.fold<double>(0, (t, x) => t + x.total),
+                      budget: _budget.total,
+                      onEdit: _editable ? () => showBudgetSheet(context, _month) : null,
+                    ),
+                    const SizedBox(height: Gap.md),
+                  ],
+                  if (totals.isEmpty)
+                    _box(
+                      c,
+                      Text('Nessuna spesa a ${monthName(_month)}.',
+                          textAlign: TextAlign.center, style: AppText.body.copyWith(color: c.onSurfaceMuted)),
+                    )
+                  else ...[
+                    _chartCard(s, c, totals),
+                    const SizedBox(height: Gap.md),
+                    _list(s, c, totals),
+                  ],
                 ],
               ]),
             ),
@@ -114,6 +130,9 @@ class _StatsScreenState extends State<StatsScreen> {
       ),
     );
   }
+
+  /// Il budget si modifica dal mese corrente in poi: quelli passati restano com'erano.
+  bool get _editable => !_month.isBefore(monthStart(DateTime.now()));
 
   Widget _box(ScontriniColors c, Widget child) => Container(
         padding: const EdgeInsets.all(Gap.xl),
@@ -182,6 +201,8 @@ class _StatsScreenState extends State<StatsScreen> {
             percent: sum == 0 ? '' : '${(t.total / sum * 100).round()}%',
             amount: money(t.total),
             fraction: max <= 0 ? 0 : (t.total / max).clamp(0, 1).toDouble(),
+            spent: t.total,
+            budget: t.categoryId == null ? null : _budget.categories[t.categoryId],
             onTap: t.categoryId == null ? null : () => s.openMovements(month: _month, categoryId: t.categoryId),
           ),
       ]),
@@ -195,6 +216,10 @@ class _CategoryBar extends StatelessWidget {
   final String percent;
   final String amount;
   final double fraction;
+  final double spent;
+
+  /// Budget della categoria nel mese: la barra mostra la spesa rispetto a esso.
+  final double? budget;
   final VoidCallback? onTap;
 
   const _CategoryBar({
@@ -203,15 +228,20 @@ class _CategoryBar extends StatelessWidget {
     required this.percent,
     required this.amount,
     required this.fraction,
+    required this.spent,
+    required this.budget,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final b = budget;
+    final level = budgetLevel(spent, b);
     return Semantics(
       button: onTap != null,
-      label: '$name, $percent, $amount${onTap == null ? '' : '. Mostra i movimenti'}',
+      label: '$name, $percent, $amount${b == null ? '' : ' su un budget di ${money(b)}'}'
+          '${onTap == null ? '' : '. Mostra i movimenti'}',
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,
@@ -236,13 +266,21 @@ class _CategoryBar extends StatelessWidget {
             const SizedBox(height: Gap.xs),
             Padding(
               padding: const EdgeInsets.only(left: 22),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: Stack(children: [
-                  Container(height: 6, color: c.surfaceHigh),
-                  FractionallySizedBox(widthFactor: fraction, child: Container(height: 6, color: color)),
-                ]),
-              ),
+              child: b == null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: Stack(children: [
+                        Container(height: 6, color: c.surfaceHigh),
+                        FractionallySizedBox(widthFactor: fraction, child: Container(height: 6, color: color)),
+                      ]),
+                    )
+                  : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      BudgetBar(spent: spent, budget: b, height: 6, color: level == BudgetLevel.ok ? color : null),
+                      const SizedBox(height: 3),
+                      Text('${budgetRemaining(spent, b)} su ${money(b)}',
+                          style: AppText.badge.copyWith(
+                              color: level == BudgetLevel.ok ? c.onSurfaceMuted : budgetColor(c, level))),
+                    ]),
             ),
           ]),
         ),

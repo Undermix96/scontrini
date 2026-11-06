@@ -349,6 +349,68 @@ void main() {
     expect(find.text('Esselunga'), findsNothing);
   });
 
+  testWidgets('Budget: impostato da Spese, visibile anche in Movimenti', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    state.setTab(AppTab.stats);
+    await _settle(tester);
+    await tester.tap(find.text('Imposta un budget mensile'));
+    await _settle(tester);
+    expect(find.text('Budget mensile'), findsOneWidget);
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), '100');
+    await tester.enterText(fields.at(5), '10'); // Salute: 18,90 spesi
+    await tester.tap(find.text('Salva'));
+    await _settle(tester);
+
+    final month = DateTime(DateTime.now().year, DateTime.now().month);
+    final budget = (await tester.runAsync(() => app.repo.budgetFor(month)))!;
+    expect(budget.total, 100);
+    expect(budget.categories, {5: 10});
+    expect(find.textContaining('Budget di'), findsOneWidget);
+    // Spese confronta il budget con la somma delle righe (123,75 €), Movimenti
+    // con i totali degli scontrini (125,25 €): ognuna con il totale che mostra.
+    expect(find.text('Superato di ${money(23.75)}'), findsOneWidget);
+    expect(find.text('Superato di ${money(8.9)} su ${money(10)}'), findsOneWidget);
+
+    state.setTab(AppTab.movements);
+    await _settle(tester);
+    expect(find.text('Superato di ${money(25.25)} · budget ${money(100)}'), findsOneWidget);
+  });
+
+  testWidgets('Budget: impostato dal pannello della categoria', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await _pumpApp(tester, state);
+    state.setTab(AppTab.categories);
+    await _settle(tester);
+    await tester.tap(find.bySemanticsLabel(RegExp('^Casa')));
+    await _settle(tester);
+    await tester.enterText(find.widgetWithText(TextField, 'Nessuno'), '50');
+    await tester.tap(find.widgetWithText(FilledButton, 'Salva'));
+    await _settle(tester);
+    final month = DateTime(DateTime.now().year, DateTime.now().month);
+    expect((await tester.runAsync(() => app.repo.budgetFor(month)))!.categories, {3: 50});
+  });
+
+  testWidgets('Budget: avviso dopo un inserimento che lo supera', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app, seeded: false);
+    final month = DateTime(DateTime.now().year, DateTime.now().month);
+    await tester.runAsync(() => app.repo.setBudget(null, month, 10));
+    await _pumpApp(tester, state);
+    _push(tester, const ManualEntryScreen());
+    await _settle(tester);
+    final row = find.descendant(of: find.byKey(const ValueKey('edit-draft-0')), matching: find.byType(TextField));
+    await tester.enterText(row.at(0), 'Cena');
+    await tester.enterText(row.at(1), '12');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Salva'));
+    await _settle(tester);
+    expect(find.text('Budget del mese superato.'), findsOneWidget);
+  });
+
   testWidgets('Dettaglio: banner del totale e riga espandibile', (tester) async {
     final app = FakeApp();
     await _pumpApp(tester, await _state(tester, app));
