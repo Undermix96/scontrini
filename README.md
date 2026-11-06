@@ -61,11 +61,13 @@ I CSV sono pensati per Excel e LibreOffice in italiano: separatore `;`, virgola 
 
 Il workflow [`Build app`](.github/workflows/build.yml) parte **solo manualmente**: vai in *Actions → Build app → Run workflow*.
 
-- **Android**: APK release, uno per ABI. Se configuri questi secrets nel repo, l'APK è firmato con la tua chiave; altrimenti viene firmato con la chiave di debug.
+- **Android**: APK release, uno per ABI, **firmato con la chiave release del progetto**. La chiave è nei secrets del repo (già configurati):
   - `ANDROID_KEYSTORE_BASE64`: il file `.jks` codificato in base64
   - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
 
-  Per creare un keystore:
+  Il log del passo *Prepara keystore di firma* mostra "Firma release configurata". Se i secrets mancassero (per esempio in un fork), il workflow segnala un avviso e firma con la chiave di debug: un APK così non si installa sopra quello firmato con la chiave release.
+
+  Per creare un nuovo keystore (solo per un fork o se la chiave andasse persa):
 
   ```bash
   keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 4096 -validity 10000 -alias scontrini
@@ -75,7 +77,7 @@ Il workflow [`Build app`](.github/workflows/build.yml) parte **solo manualmente*
   base64 -w0 release.jks
   ```
 
-  Per aggiornare l'app senza perdere i dati, ogni APK va firmato **con la stessa chiave**: Android rifiuta un aggiornamento firmato diversamente e l'unica via sarebbe disinstallare (backup e ripristino).
+  Per aggiornare l'app senza perdere i dati, ogni APK va firmato **con la stessa chiave**: Android rifiuta un aggiornamento firmato diversamente e l'unica via sarebbe disinstallare (backup e ripristino). Conserva una copia del keystore e delle password fuori da GitHub: i secrets non si possono rileggere.
 - **iOS**: IPA **non firmato**, da installare con AltStore o Sideloadly. Con un Apple ID gratuito va rifirmato ogni 7 giorni.
 
 ### Versioni

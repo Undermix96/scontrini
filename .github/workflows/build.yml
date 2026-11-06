@@ -69,7 +69,8 @@ jobs:
 
       - run: flutter test
 
-      # Firma release opzionale: se i secrets non ci sono, l'APK è firmato con la chiave di debug.
+      # Firma release con i secrets del repo (configurati). Senza secrets (es. in un
+      # fork) l'APK è firmato con la chiave di debug e compare un avviso.
       - name: Prepara keystore di firma
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
