@@ -97,6 +97,10 @@ Le versioni seguono la data (CalVer) e sono assegnate dal workflow, senza modifi
 
 In *Impostazioni → Informazioni* compare come `2026.11.5 (build 57)`; nelle build locali come "sviluppo". Gli artifact hanno lo stesso nome (`scontrini-android-2026.11.5-b57`). Su Android il `versionCode` include anche l'offset per architettura che Flutter aggiunge con `--split-per-abi`.
 
+### Release
+
+Con l'opzione *Pubblica una release* (attiva di default) il workflow crea anche una [release GitHub](../../releases) con tag `v<versione>-b<build>` (es. `v2026.11.5-b57`) e allega i pacchetti pronti da installare: gli APK per ABI (`scontrini-2026.11.5-arm64-v8a.apk`…), l'IPA non firmato e `SHA256SUMS.txt`. Il changelog è l'elenco dei commit dalla release precedente; il campo *Nota* aggiunge un testo libero in cima. La release parte se almeno una piattaforma è stata compilata e nessuna è fallita.
+
 > **Aggiornamento dalla versione con server Supabase.** La vecchia versione salvava i dati su un server. Questa li tiene sul telefono e non li importa: all'avvio si riparte da zero con il primo avvio (servizio AI e chiave).
 
 ## Sviluppo locale

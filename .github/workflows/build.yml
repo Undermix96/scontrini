@@ -13,6 +13,14 @@ on:
         description: "Build iOS (IPA non firmato)"
         type: boolean
         default: true
+      release:
+        description: "Pubblica una release GitHub con APK/IPA e changelog"
+        type: boolean
+        default: true
+      note:
+        description: "Nota facoltativa in cima al changelog della release"
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -157,3 +165,89 @@ jobs:
           retention-days: 30
 
 
+
+  # Release GitHub con i pacchetti installabili (APK per ABI, IPA non firmato) e
+  # il changelog: i commit dall'ultima release (tag v*) a questo. Parte se almeno
+  # una piattaforma è stata compilata e nessuna è fallita.
+  release:
+    needs: [version, android, ios]
+    if: >-
+      ${{ always() && inputs.release
+      && needs.version.result == 'success'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+      && (needs.android.result == 'success' || needs.ios.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # serve la storia completa e i tag per il changelog
+
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: scontrini-*-${{ needs.version.outputs.name }}-b${{ needs.version.outputs.build }}
+          path: artifacts
+          merge-multiple: true
+
+      - name: Rinomina i pacchetti e calcola i checksum
+        env:
+          APP_VERSION: ${{ needs.version.outputs.name }}
+        run: |
+          mkdir dist
+          # app-arm64-v8a-release.apk → scontrini-2026.11.7-arm64-v8a.apk
+          for f in artifacts/*.apk; do
+            [ -e "$f" ] || continue
+            abi=$(basename "$f" .apk | sed -e 's/^app-//' -e 's/-release$//')
+            cp "$f" "dist/scontrini-$APP_VERSION-$abi.apk"
+          done
+          if [ -e artifacts/scontrini-unsigned.ipa ]; then
+            cp artifacts/scontrini-unsigned.ipa "dist/scontrini-$APP_VERSION-ios-unsigned.ipa"
+          fi
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+          ls -l dist && cat dist/SHA256SUMS.txt
+
+      - name: Scrivi il changelog
+        env:
+          APP_VERSION: ${{ needs.version.outputs.name }}
+          APP_BUILD: ${{ needs.version.outputs.build }}
+          NOTE: ${{ inputs.note }}
+        run: |
+          prev=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+          {
+            if [ -n "$NOTE" ]; then printf '%s\n\n' "$NOTE"; fi
+            echo "## Novità"
+            echo
+            if [ -n "$prev" ]; then
+              changes=$(git log --no-merges --format='- %s' "$prev..HEAD")
+            else
+              changes=$(git log --no-merges --format='- %s' HEAD)
+            fi
+            echo "${changes:-- Nessuna modifica al codice rispetto a $prev}"
+            echo
+            echo "## Installazione"
+            echo
+            echo "**Android**: scarica l'APK per il tuo telefono. Quasi tutti i telefoni recenti usano \`arm64-v8a\`; \`armeabi-v7a\` è per i telefoni a 32 bit, \`x86_64\` per emulatori e Chromebook."
+            echo
+            echo "**iOS**: l'IPA non è firmato; va firmato e installato con uno strumento di sideload (AltStore, Sideloadly…)."
+            echo
+            echo "Versione \`$APP_VERSION\` (build $APP_BUILD), commit ${GITHUB_SHA:0:7}. Checksum in \`SHA256SUMS.txt\`."
+            if [ -n "$prev" ]; then
+              echo
+              echo "Confronto completo: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$prev...v$APP_VERSION-b$APP_BUILD"
+            fi
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Crea la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_VERSION: ${{ needs.version.outputs.name }}
+          APP_BUILD: ${{ needs.version.outputs.build }}
+        run: |
+          gh release create "v$APP_VERSION-b$APP_BUILD" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "Scontrini $APP_VERSION (build $APP_BUILD)" \
+            --notes-file release-notes.md
