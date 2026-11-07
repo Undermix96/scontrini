@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -18,6 +20,12 @@ String waitLabel(Duration d) {
   return m == 1 ? '1 minuto' : '$m minuti';
 }
 
+/// Conto alla rovescia: "0:28", "4:00".
+String countdown(Duration d) {
+  final s = d.inSeconds + (d.inMilliseconds % 1000 > 0 ? 1 : 0);
+  return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+}
+
 String? pinResultMessage(PinResult r) => switch (r) {
       PinOk() => null,
       PinWrong(wait: null) => 'PIN errato',
@@ -30,6 +38,8 @@ String? pinResultMessage(PinResult r) => switch (r) {
 /// Con [autoLength] il PIN viene inviato appena raggiunge quella lunghezza;
 /// altrimenti serve il pulsante [submitLabel] (da [minPinLength] cifre).
 /// [onSubmit] restituisce un messaggio d'errore (e il campo si svuota) o null.
+/// Con [waitRemaining] (troppi errori) il tastierino resta disattivato e
+/// mostra un conto alla rovescia fino a quando si può riprovare.
 class PinEntry extends StatefulWidget {
   final String title;
   final String? subtitle;
@@ -37,6 +47,7 @@ class PinEntry extends StatefulWidget {
   final String submitLabel;
   final Future<String?> Function(String pin) onSubmit;
   final VoidCallback? onBiometric;
+  final Duration? Function()? waitRemaining;
 
   const PinEntry({
     super.key,
@@ -46,6 +57,7 @@ class PinEntry extends StatefulWidget {
     this.submitLabel = 'Avanti',
     required this.onSubmit,
     this.onBiometric,
+    this.waitRemaining,
   });
 
   @override
@@ -57,17 +69,42 @@ class _PinEntryState extends State<PinEntry> {
   String? _error;
   bool _busy = false;
   final _focus = FocusNode();
+  Duration? _wait;
+  Timer? _ticker;
 
   int get _max => widget.autoLength ?? maxPinLength;
 
   @override
+  void initState() {
+    super.initState();
+    _syncWait();
+  }
+
+  @override
   void dispose() {
+    _ticker?.cancel();
     _focus.dispose();
     super.dispose();
   }
 
+  /// Aggiorna l'attesa dopo troppi errori, una volta al secondo finché dura.
+  void _syncWait() {
+    final w = widget.waitRemaining?.call();
+    if (w != null) {
+      _ticker ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(_syncWait);
+      });
+    } else {
+      _ticker?.cancel();
+      _ticker = null;
+      // Finita l'attesa, il vecchio messaggio non serve più.
+      if (_wait != null) _error = null;
+    }
+    _wait = w;
+  }
+
   void _digit(String d) {
-    if (_busy || _pin.length >= _max) return;
+    if (_busy || _wait != null || _pin.length >= _max) return;
     HapticFeedback.selectionClick();
     setState(() {
       _pin += d;
@@ -82,7 +119,7 @@ class _PinEntryState extends State<PinEntry> {
   }
 
   Future<void> _submit() async {
-    if (_busy || _pin.length < minPinLength) return;
+    if (_busy || _wait != null || _pin.length < minPinLength) return;
     setState(() => _busy = true);
     final error = await widget.onSubmit(_pin);
     if (!mounted) return;
@@ -92,6 +129,7 @@ class _PinEntryState extends State<PinEntry> {
         _error = error;
         _pin = '';
       }
+      _syncWait();
     });
     if (error != null) HapticFeedback.heavyImpact();
   }
@@ -118,12 +156,16 @@ class _PinEntryState extends State<PinEntry> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final dots = widget.autoLength ?? (_pin.length < minPinLength ? minPinLength : _pin.length);
+    final wait = _wait;
+    // Durante l'attesa le cifre sono attenuate (l'impronta resta usabile).
+    final digitColor = wait == null ? c.onSurface : c.onSurfaceMuted.withValues(alpha: 0.5);
     Widget key(String d) => _PadKey(
           onTap: () => _digit(d),
           semantics: d,
-          child: Text(d, style: AppText.headline.copyWith(color: c.onSurface)),
+          child: Text(d, style: AppText.headline.copyWith(color: digitColor)),
         );
     final bio = widget.onBiometric;
+    final message = wait != null ? 'Troppi tentativi. Riprova tra ${countdown(wait)}' : _error ?? '';
     return Focus(
       focusNode: _focus,
       autofocus: true,
@@ -160,7 +202,10 @@ class _PinEntryState extends State<PinEntry> {
           child: Center(
             child: _busy
                 ? SmallSpinner(color: c.onSurfaceMuted)
-                : Text(_error ?? '', textAlign: TextAlign.center, style: AppText.bodySmall.copyWith(color: c.error)),
+                : Text(message,
+                    textAlign: TextAlign.center,
+                    style:
+                        AppText.bodySmall.copyWith(color: c.error, fontFeatures: const [FontFeature.tabularFigures()])),
           ),
         ),
         ConstrainedBox(
@@ -196,7 +241,7 @@ class _PinEntryState extends State<PinEntry> {
         if (widget.autoLength == null) ...[
           const SizedBox(height: Gap.md),
           FilledButton(
-            onPressed: _pin.length >= minPinLength && !_busy ? _submit : null,
+            onPressed: _pin.length >= minPinLength && !_busy && wait == null ? _submit : null,
             child: Text(widget.submitLabel),
           ),
         ],
@@ -306,10 +351,22 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// L'app è andata davvero in background (non basta la finestra
+  /// dell'impronta, che la rende solo inattiva).
+  bool _wentAway = false;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
-    // Tornando nell'app ancora bloccata si ripropone l'impronta.
-    if (s == AppLifecycleState.resumed && _lock.locked && !_prompting) _biometric();
+    switch (s) {
+      case AppLifecycleState.paused || AppLifecycleState.hidden:
+        _wentAway = true;
+      // Tornando nell'app ancora bloccata si ripropone l'impronta, ma non
+      // dopo "Usa il PIN": la finestra si chiude e resta il tastierino.
+      case AppLifecycleState.resumed when _wentAway:
+        _wentAway = false;
+        if (_lock.locked && !_prompting) _biometric();
+      default:
+    }
   }
 
   bool _prompting = false;
@@ -342,6 +399,7 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
                 autoLength: _lock.pinLength,
                 onSubmit: (pin) async => pinResultMessage(await _lock.unlockWithPin(pin)),
                 onBiometric: _lock.biometric ? _biometric : null,
+                waitRemaining: () => _lock.remainingWait,
               ),
             ]),
           ),
@@ -433,6 +491,7 @@ Future<bool> verifyPin(BuildContext context, {String title = 'Inserisci il PIN a
       child: PinEntry(
         title: title,
         autoLength: lock.pinLength,
+        waitRemaining: () => lock.remainingWait,
         onSubmit: (pin) async {
           final r = await lock.checkPin(pin);
           if (r is PinOk && ctx.mounted) Navigator.pop(ctx, true);

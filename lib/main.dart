@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -57,10 +58,23 @@ class ScontriniApp extends StatelessWidget {
         darkTheme: buildTheme(Brightness.dark),
         themeMode: ThemeMode.system,
         builder: (context, child) => LockGate(child: child!),
+        onNavigationNotification: frameworkHandlesBack,
         home: const _Root(),
       ),
     );
   }
+}
+
+/// Dice ad Android se il tasto indietro tocca all'app (c'è una schermata da
+/// chiudere) o al sistema. Flutter di suo ignora la notifica finché non
+/// conosce lo stato dell'app, e con FlutterFragmentActivity lo stato iniziale
+/// può mancare fino al primo passaggio in background: il tasto indietro
+/// chiudeva l'app invece di tornare alla schermata precedente.
+bool frameworkHandlesBack(NavigationNotification n) {
+  if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.detached) {
+    SystemNavigator.setFrameworkHandlesBack(n.canHandlePop);
+  }
+  return true;
 }
 
 /// Primo avvio finché l'app non è configurata, poi la shell con le schede.

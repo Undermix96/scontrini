@@ -28,6 +28,10 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   String? _expanded;
   String? _focusNew;
   bool _dirty = false;
+
+  /// Righe tolte dalla schermata ma non ancora dal database (finché si può
+  /// annullare): restano nascoste anche quando lo scontrino viene ricaricato.
+  final _pendingDeletes = <String>{};
   late final AppState _state = AppScope.read(context);
 
   @override
@@ -53,10 +57,15 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     setState(() => _error = null);
     try {
       final r = await _state.repo.receipt(widget.receiptId);
-      if (mounted) setState(() => _r = r);
+      if (mounted) setState(() => _r = _withoutPending(r));
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     }
+  }
+
+  Receipt _withoutPending(Receipt r) {
+    if (_pendingDeletes.isNotEmpty) r.items = [for (final i in r.items) if (!_pendingDeletes.contains(i.id)) i];
+    return r;
   }
 
   void _snack(String m) => showSnack(context, m);
@@ -74,7 +83,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     );
     if (updated != null && mounted) {
       setState(() {
-        _r = updated;
+        _r = _withoutPending(updated);
         _dirty = true;
       });
     }
@@ -189,6 +198,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   void _removeItem(ReceiptItem item) {
     final r = _r!;
     final index = r.items.indexOf(item);
+    _pendingDeletes.add(item.id);
     setState(() {
       r.items = [...r.items]..remove(item);
       if (_expanded == item.id) _expanded = null;
@@ -201,12 +211,17 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         .showSnackBar(SnackBar(
           content: Text('Riga "${item.description.isEmpty ? 'senza nome' : item.description}" eliminata'),
           duration: const Duration(seconds: 4),
+          // Senza, con l'azione "Annulla" resterebbe aperto e la riga non
+          // verrebbe mai eliminata dal database.
+          persist: false,
           action: SnackBarAction(
             label: 'Annulla',
             onPressed: () {
               undone = true;
+              _pendingDeletes.remove(item.id);
               if (mounted) {
-                setState(() => r.items = [...r.items]..insert(index.clamp(0, r.items.length), item));
+                final cur = _r ?? r;
+                setState(() => cur.items = [...cur.items]..insert(index.clamp(0, cur.items.length), item));
               }
             },
           ),
@@ -216,11 +231,14 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       if (undone) return;
       try {
         await repo.deleteItem(item.id);
+        _pendingDeletes.remove(item.id);
         _dirty = true;
         if (!mounted) _state.dataChanged();
       } catch (e) {
+        _pendingDeletes.remove(item.id);
         if (mounted) {
-          setState(() => r.items = [...r.items]..insert(index.clamp(0, r.items.length), item));
+          final cur = _r ?? r;
+          setState(() => cur.items = [...cur.items]..insert(index.clamp(0, cur.items.length), item));
           _snack('Eliminazione non riuscita: $e');
         }
       }

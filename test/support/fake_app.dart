@@ -95,7 +95,8 @@ class FakeFiles implements FileGateway {
 
 /// App con database in memoria e gli stessi dati delle tavole del design.
 class FakeApp {
-  final DateTime now;
+  /// Orologio dell'app: si può spostare in avanti nei test.
+  DateTime now;
   final db = memoryDatabase();
   /// Cartella temporanea per le foto conservate, eliminata a fine test.
   late final photos = PhotoStore(Directory.systemTemp.createTempSync('scontrini_photos_'));

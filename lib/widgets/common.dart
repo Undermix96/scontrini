@@ -238,6 +238,8 @@ void showSnack(BuildContext context, String message, {String? actionLabel, VoidC
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
       content: Text(message),
+      // Con un'azione Flutter lo terrebbe aperto finché non lo si chiude.
+      persist: false,
       action: actionLabel == null ? null : SnackBarAction(label: actionLabel, onPressed: onAction ?? () {}),
     ));
 }

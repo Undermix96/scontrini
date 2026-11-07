@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:scontrini/ai/ai_client.dart';
@@ -201,6 +201,86 @@ void main() {
     await _settle(tester);
     expect(app.biometrics.prompts, 2);
     expect(find.byType(LockScreen), findsNothing);
+  });
+
+  testWidgets("Blocco: 'Usa il PIN' non ripropone l'impronta", (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await tester.runAsync(() async {
+      await state.lock.setPin('2580');
+      await state.lock.setBiometric(true);
+      await state.lock.load();
+    });
+    app.biometrics.succeed = false;
+    await _pumpApp(tester, state);
+    expect(app.biometrics.prompts, 1);
+    // La finestra dell'impronta rende l'app solo inattiva: chiudendola con
+    // "Usa il PIN" resta il tastierino.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await _settle(tester);
+    expect(app.biometrics.prompts, 1);
+    // Tornando davvero dal background invece si ripropone.
+    for (final s in [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(s);
+    }
+    await _settle(tester);
+    expect(app.biometrics.prompts, 2);
+    await _typePin(tester, '2580', find.byType(LockScreen));
+    expect(find.byType(LockScreen), findsNothing);
+  });
+
+  testWidgets('Blocco: troppi errori, conto alla rovescia e tastierino fermo', (tester) async {
+    final app = FakeApp();
+    final state = await _state(tester, app);
+    await tester.runAsync(() async {
+      await state.lock.setPin('2580');
+      await state.lock.load();
+    });
+    await _pumpApp(tester, state);
+    for (var i = 0; i < 5; i++) {
+      await _typePin(tester, '1111', find.byType(LockScreen));
+    }
+    expect(find.text('Troppi tentativi. Riprova tra 0:30'), findsOneWidget);
+    // Durante l'attesa le cifre non vengono prese.
+    await _typePin(tester, '2580', find.byType(LockScreen));
+    expect(find.byType(LockScreen), findsOneWidget);
+    // Il conto alla rovescia si aggiorna da solo.
+    app.now = app.now.add(const Duration(seconds: 12));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Troppi tentativi. Riprova tra 0:18'), findsOneWidget);
+    app.now = app.now.add(const Duration(seconds: 18));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.textContaining('Troppi tentativi'), findsNothing);
+    await _typePin(tester, '2580', find.byType(LockScreen));
+    expect(find.byType(LockScreen), findsNothing);
+  });
+
+  testWidgets("Tasto indietro: Android sa quando c'è una schermata da chiudere", (tester) async {
+    final calls = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'SystemNavigator.setFrameworkHandlesBack') calls.add(call.arguments);
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    // Anche se Flutter non conosce ancora lo stato dell'app.
+    expect(frameworkHandlesBack(const NavigationNotification(canHandlePop: true)), isTrue);
+    expect(calls.last, isTrue);
+    final app = FakeApp();
+    await _pumpApp(tester, await _state(tester, app));
+    await tester.tap(find.text('Esselunga'));
+    await _settle(tester);
+    expect(calls.last, isTrue, reason: 'dettaglio aperto: indietro lo chiude');
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(calls.last, isFalse, reason: 'nella schermata principale indietro esce');
   });
 
   testWidgets('Primo avvio: endpoint compatibile senza https', (tester) async {
@@ -470,6 +550,31 @@ void main() {
     await _settle(tester);
     final r = (await tester.runAsync(() => app.repo.receipt('r1')))!;
     expect(r.items.firstWhere((i) => i.description == 'Pane casereccio').categoryId, 3);
+  });
+
+  testWidgets('Dettaglio: riga eliminata e totale corretto, la riga non ricompare', (tester) async {
+    final app = FakeApp();
+    await _pumpApp(tester, await _state(tester, app));
+    await tester.tap(find.text('Esselunga'));
+    await _settle(tester);
+    await tester.drag(find.text('Pane casereccio'), const Offset(-600, 0));
+    await _settle(tester);
+    expect(find.text('Pane casereccio'), findsNothing);
+    // Si corregge il totale mentre si può ancora annullare l'eliminazione.
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^Totale: ')));
+    await tester.pumpAndSettle();
+    final sheet = find.byType(BottomSheet);
+    await tester.enterText(find.descendant(of: sheet, matching: find.byType(TextField)).last, '62,10');
+    await tester.tap(find.descendant(of: sheet, matching: find.text('Salva')));
+    await _settle(tester);
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.text('Pane casereccio'), findsNothing);
+    // Chiuso l'avviso, la riga sparisce anche dal database.
+    await _advance(tester, const Duration(seconds: 6));
+    await _settle(tester);
+    final r = (await tester.runAsync(() => app.repo.receipt('r1')))!;
+    expect(r.items.map((i) => i.description), isNot(contains('Pane casereccio')));
+    expect(find.text('Pane casereccio'), findsNothing);
   });
 
   testWidgets('Analisi: passaggi e Annulla', (tester) async {
